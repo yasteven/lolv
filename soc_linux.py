@@ -21,6 +21,43 @@ from litex.soc.cores.pwm     import PWM
 
 from litex.tools.litex_json2dts_linux import generate_dts
 
+
+
+class SeeGpioCSR(Module, AutoCSR):
+    """Tiny Linux-visible CSR test block.
+
+    First milestone:
+      Linux/devmem -> LiteX CSR bus -> FPGA register readback
+
+    ctrl bits:
+      bit 0  manual_enable
+      bit 1  blink_enable
+      bit 8  gpio_0 requested value
+      bit 9  gpio_1 requested value
+      bit 10 gpio_5 requested value
+      bit 11 gpio_6 requested value
+      bit 12 gpio_9 requested value
+      bit 13 gpio_10 requested value
+      bit 14 gpio_11 requested value
+      bit 15 gpio_12 requested value
+      bit 16 gpio_13 requested value
+      bit 24 rgb_r requested value
+      bit 25 rgb_g requested value
+      bit 26 rgb_b requested value
+
+    status returns a magic word XOR ctrl XOR a free-running counter.
+    """
+    def __init__(self):
+        self._ctrl   = CSRStorage(32, reset=0x00000000, description="see GPIO/RGB requested output control")
+        self._status = CSRStatus(32, description="see GPIO/RGB status/readback")
+
+        counter = Signal(32)
+        self.sync += counter.eq(counter + 1)
+
+        # Use upper counter bits so a human-speed devmem loop visibly changes.
+        self.comb += self._status.status.eq(0x5eea0001 ^ self._ctrl.storage ^ counter[8:32])
+
+
 # SoCLinux -----------------------------------------------------------------------------------------
 
 def SoCLinux(soc_cls, **kwargs):
@@ -35,6 +72,12 @@ def SoCLinux(soc_cls, **kwargs):
             # SoC ----------------------------------------------------------------------------------
 
             soc_cls.__init__(self, cpu_type="vexriscv_smp", cpu_variant="linux", **kwargs)
+
+
+            # Tiny custom CSR block.
+            # First milestone: prove Linux -> CSR -> gateware register path.
+            # Use the SoC helper so the module is registered like normal LiteX peripherals.
+            self.add_module(name="see_gpio", module=SeeGpioCSR())
 
         # RGB Led ----------------------------------------------------------------------------------
 

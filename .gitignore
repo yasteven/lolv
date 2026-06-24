@@ -23,3 +23,19 @@ build/*
 *.d
 *.o
 *.elf
+
+# Local Buildroot/Linux payload links and outputs.
+images/Image
+images/opensbi.bin
+images/rootfs.cpio
+images/rootfs.cpio.gz
+images/rootfs.ext4
+images/rv32.dtb
+
+# Local Buildroot/Linux payload links and outputs.
+images/Image
+images/opensbi.bin
+images/rootfs.cpio
+images/rootfs.cpio.gz
+images/rootfs.ext4
+images/rv32.dtb
