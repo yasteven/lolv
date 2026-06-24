@@ -12,6 +12,7 @@ import subprocess
 from migen import *
 
 from litex.soc.interconnect.csr import *
+from litex.build.generic_platform import Pins, IOStandard, Misc
 
 from litex.soc.cores.cpu.vexriscv_smp import VexRiscvSMP
 from litex.soc.cores.gpio    import GPIOOut, GPIOIn
@@ -23,39 +24,33 @@ from litex.tools.litex_json2dts_linux import generate_dts
 
 
 
-class SeeGpioCSR(Module, AutoCSR):
-    """Tiny Linux-visible CSR test block.
 
-    First milestone:
-      Linux/devmem -> LiteX CSR bus -> FPGA register readback
+# Header Probe VHDL CSR wrapper --------------------------------------------------------------------
 
-    ctrl bits:
-      bit 0  manual_enable
-      bit 1  blink_enable
-      bit 8  gpio_0 requested value
-      bit 9  gpio_1 requested value
-      bit 10 gpio_5 requested value
-      bit 11 gpio_6 requested value
-      bit 12 gpio_9 requested value
-      bit 13 gpio_10 requested value
-      bit 14 gpio_11 requested value
-      bit 15 gpio_12 requested value
-      bit 16 gpio_13 requested value
-      bit 24 rgb_r requested value
-      bit 25 rgb_g requested value
-      bit 26 rgb_b requested value
+class HeaderProbe(Module, AutoCSR):
+    def __init__(self, platform, pads):
+        self.enable  = CSRStorage(1,  reset=0,     description="Enable header probe output drivers.")
+        self.oe      = CSRStorage(12, reset=0x000, description="Output-enable mask for header probe pins.")
+        self.out     = CSRStorage(12, reset=0x000, description="Output value mask for header probe pins.")
+        self.pins_in = CSRStatus(12,              description="Live sampled value of header probe pins.")
 
-    status returns a magic word XOR ctrl XOR a free-running counter.
-    """
-    def __init__(self):
-        self._ctrl   = CSRStorage(32, reset=0x00000000, description="see GPIO/RGB requested output control")
-        self._status = CSRStatus(32, description="see GPIO/RGB status/readback")
+        pins_in = Signal(12)
 
-        counter = Signal(32)
-        self.sync += counter.eq(counter + 1)
+        platform.add_source("gateware/header_probe.v")
 
-        # Use upper counter bits so a human-speed devmem loop visibly changes.
-        self.comb += self._status.status.eq(0x5eea0001 ^ self._ctrl.storage ^ counter[8:32])
+        self.specials += Instance("header_probe",
+            i_clk       = ClockSignal("sys"),
+            i_rst       = ResetSignal("sys"),
+
+            i_enable    = self.enable.storage,
+            i_oe        = self.oe.storage,
+            i_out_value = self.out.storage,
+            o_in_value  = pins_in,
+
+            io_gpio     = pads,
+        )
+
+        self.comb += self.pins_in.status.eq(pins_in)
 
 
 # SoCLinux -----------------------------------------------------------------------------------------
@@ -73,11 +68,61 @@ def SoCLinux(soc_cls, **kwargs):
 
             soc_cls.__init__(self, cpu_type="vexriscv_smp", cpu_variant="linux", **kwargs)
 
+            # Header Probe -------------------------------------------------------------------------
+            #
+            # Real CSR-backed VHDL IP block for probing the OrangeCrab 0.1 inch GPIO holes from Linux.
+            # This replaces the fake/manual DT-only gpio@f0004800 experiment.
+            #
+            # Bit mapping:
+            #   bit 0  -> GPIO:1
+            #   bit 1  -> GPIO:5
+            #   bit 2  -> GPIO:6
+            #   bit 3  -> GPIO:9
+            #   bit 4  -> GPIO:10
+            #   bit 5  -> GPIO:11
+            #   bit 6  -> GPIO:12
+            #   bit 7  -> GPIO:13
+            #   bit 8  -> GPIO:18
+            #   bit 9  -> GPIO:19
+            #   bit 10 -> GPIO:20
+            #   bit 11 -> GPIO:21
+            #
+            # GPIO:2/GPIO:3 are left alone because this SoC already has i2c0.
+            self.platform.add_extension([
+                ("header_probe_pads", 0,
+                    Pins("GPIO:1 GPIO:5 GPIO:6 GPIO:9 GPIO:10 GPIO:11 GPIO:12 GPIO:13 GPIO:18 GPIO:19 GPIO:20 GPIO:21"),
+                    IOStandard("LVCMOS33"),
+                    Misc("PULLMODE=DOWN")
+                )
+            ])
+            self.submodules.header_probe = HeaderProbe(
+                platform = self.platform,
+                pads     = self.platform.request("header_probe_pads", 0),
+            )
+            # Keep header_probe away from CSR bank 0.
+            # Linux's litex_soc_ctrl driver expects the SoC controller/scratch CSR at 0xf0000000.
+            # Bank 9 gives header_probe base 0xf0004800 with the default 0x800 CSR paging.
+            self.csr.add("header_probe", n=9)
 
-            # Tiny custom CSR block.
-            # First milestone: prove Linux -> CSR -> gateware register path.
-            # Use the SoC helper so the module is registered like normal LiteX peripherals.
-            self.add_module(name="see_gpio", module=SeeGpioCSR())
+            # Header GPIO pins on the OrangeCrab 0.1" holes.
+            #
+            # Bit mapping:
+            #   bit 0  -> GPIO:1
+            #   bit 1  -> GPIO:5
+            #   bit 2  -> GPIO:6
+            #   bit 3  -> GPIO:9
+            #   bit 4  -> GPIO:10
+            #   bit 5  -> GPIO:11
+            #   bit 6  -> GPIO:12
+            #   bit 7  -> GPIO:13
+            #   bit 8  -> GPIO:18
+            #   bit 9  -> GPIO:19
+            #   bit 10 -> GPIO:20
+            #   bit 11 -> GPIO:21
+            #
+            # GPIO:2/GPIO:3 are left alone because this SoC already has i2c0.
+            # GPIO:0/GPIO:14/GPIO:15/GPIO:16 are left alone for possible SPI-style use.
+
 
         # RGB Led ----------------------------------------------------------------------------------
 

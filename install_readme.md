@@ -39,20 +39,20 @@ Keep large source trees, toolchains, generated CPU sources, Buildroot sources, c
 Use `LOEXSO` as the external local source/tool directory:
 
 ```
-export LOEXSO="$HOME/1tb/ext"
+export LOEXSO="$EXTERNAL"
 mkdir -p "$LOEXSO"
 ```
 
 The working repo path used here is:
 
 ```
-cd ~/1tb/see/1-c0d3/vhdl/lolv
+cd $WORKDIR
 ```
 
 The intended layout is:
 
 ```
-~/1tb/see/1-c0d3/vhdl/lolv/      this repository
+$WORKDIR/      this repository
 $LOEXSO/litex-venv/              Python virtual environment
 $LOEXSO/litex-src/               editable LiteX Python sources
 $LOEXSO/litex-pythondata/        recursive pythondata checkouts
@@ -179,7 +179,7 @@ dfu-util --version
 Create and enter the LiteX virtual environment:
 
 ```
-export LOEXSO="${LOEXSO:-$HOME/1tb/ext}"
+export LOEXSO="${LOEXSO:-$EXTERNAL}"
 mkdir -p "$LOEXSO"
 
 python3 -m venv "$LOEXSO/litex-venv"
@@ -194,7 +194,7 @@ python -m pip install -U pyserial requests pyyaml
 Keep editable LiteX sources outside this repo:
 
 ```
-export LOEXSO="${LOEXSO:-$HOME/1tb/ext}"
+export LOEXSO="${LOEXSO:-$EXTERNAL}"
 mkdir -p "$LOEXSO/litex-src"
 cd "$LOEXSO/litex-src"
 
@@ -287,7 +287,7 @@ The Linux CPU is `vexriscv_smp`. Do not rely on a flattened plain pip install fo
 Install it this way:
 
 ```
-export LOEXSO="${LOEXSO:-$HOME/1tb/ext}"
+export LOEXSO="${LOEXSO:-$EXTERNAL}"
 export SITE_PKGS="$(python -c 'import site; print(site.getsitepackages()[0])')"
 
 python -m pip uninstall -y \
@@ -346,11 +346,11 @@ SpinalHDL .git: True
 Create a reusable environment hook:
 
 ```
-export LOEXSO="${LOEXSO:-$HOME/1tb/ext}"
+export LOEXSO="${LOEXSO:-$EXTERNAL}"
 mkdir -p "$LOEXSO/bin"
 
 cat > "$LOEXSO/fpga-env.sh" <<'ENV'
-export LOEXSO="${LOEXSO:-$HOME/1tb/ext}"
+export LOEXSO="${LOEXSO:-$EXTERNAL}"
 
 if [ -d "$LOEXSO/litex-venv" ]; then
   source "$LOEXSO/litex-venv/bin/activate"
@@ -375,8 +375,8 @@ source "$LOEXSO/fpga-env.sh"
 From this repository:
 
 ```
-cd ~/1tb/see/1-c0d3/vhdl/lolv
-source ~/1tb/ext/fpga-env.sh
+cd $WORKDIR
+source $EXTERNAL/fpga-env.sh
 
 ./make.py \
   --board=orange_crab \
@@ -450,10 +450,10 @@ The repository `buildroot/` directory is a Buildroot `BR2_EXTERNAL` overlay, not
 The real Buildroot source tree must be checked out separately under `LOEXSO`:
 
 ```
-cd ~/1tb/see/1-c0d3/vhdl/lolv
-source ~/1tb/ext/fpga-env.sh
+cd $WORKDIR
+source $EXTERNAL/fpga-env.sh
 
-export LOEXSO="${LOEXSO:-$HOME/1tb/ext}"
+export LOEXSO="${LOEXSO:-$EXTERNAL}"
 mkdir -p "$LOEXSO"
 
 cd "$LOEXSO"
@@ -490,10 +490,10 @@ PY
 Generate the Buildroot config from the `make.py` generated board defconfig:
 
 ```
-cd ~/1tb/see/1-c0d3/vhdl/lolv
-source ~/1tb/ext/fpga-env.sh
+cd $WORKDIR
+source $EXTERNAL/fpga-env.sh
 
-export LOEXSO="${LOEXSO:-$HOME/1tb/ext}"
+export LOEXSO="${LOEXSO:-$EXTERNAL}"
 export BR_OUT="$PWD/build/orange_crab/buildroot"
 
 mkdir -p "$BR_OUT"
@@ -524,8 +524,8 @@ build/orange_crab/buildroot/images/rootfs.cpio.gz
 Link/copy them into repo `images/`:
 
 ```
-cd ~/1tb/see/1-c0d3/vhdl/lolv
-source ~/1tb/ext/fpga-env.sh
+cd $WORKDIR
+source $EXTERNAL/fpga-env.sh
 
 export BR_OUT="$PWD/build/orange_crab/buildroot"
 
@@ -652,8 +652,8 @@ With `--rootfs=mmcblk0p2`, the Linux root filesystem lives on the second SD part
 With the OrangeCrab SD card in a USB reader and identified as `/dev/sdb`:
 
 ```
-cd ~/1tb/see/1-c0d3/vhdl/lolv
-source ~/1tb/ext/fpga-env.sh
+cd $WORKDIR
+source $EXTERNAL/fpga-env.sh
 
 export SD=/dev/sdb
 
@@ -719,8 +719,8 @@ Found DFU: [1209:5af0] ... alt=0, name="0x00080000 Bitstream"
 Flash the generated FPGA bitstream to alt `0`:
 
 ```
-cd ~/1tb/see/1-c0d3/vhdl/lolv
-source ~/1tb/ext/fpga-env.sh
+cd $WORKDIR
+source $EXTERNAL/fpga-env.sh
 
 sudo dfu-util -a 0 -D build/orange_crab/gateware/orange_crab.bit.dfu
 ```
@@ -1052,10 +1052,10 @@ The first LiteX Linux bring-up does not need BusyBox traffic-control support.
 Fix:
 
 ```
-cd ~/1tb/see/1-c0d3/vhdl/lolv
-source ~/1tb/ext/fpga-env.sh
+cd $WORKDIR
+source $EXTERNAL/fpga-env.sh
 
-export LOEXSO="${LOEXSO:-$HOME/1tb/ext}"
+export LOEXSO="${LOEXSO:-$EXTERNAL}"
 export BR_OUT="$PWD/build/orange_crab/buildroot"
 
 BUSYBOX_DIR="$(find "$BR_OUT/build" -maxdepth 1 -type d -name 'busybox-*' | sort | tail -1)"
@@ -1099,7 +1099,7 @@ build/orange_crab/buildroot/images/rootfs.cpio.gz
 Optional patch to make the post-image script create the temp directory before writing `rv32.dts`:
 
 ```
-cd ~/1tb/see/1-c0d3/vhdl/lolv
+cd $WORKDIR
 
 python - <<'PY'
 from pathlib import Path
