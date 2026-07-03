@@ -1,0 +1,3978 @@
+================================================================
+LOLV MODIFIED SCRIPTS / GATEWARE / CONFIGS
+ROOT: /home/seejn/1tb/see/1-c0d3/vhdl/lolv
+GENERATED: 2026-07-02T23:27:32-07:00
+================================================================
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./boards.py
+////////////////////////////////////////////////////////////////
+
+#!/usr/bin/env python3
+
+#
+# This file is part of Linux-on-LiteX-VexRiscv
+#
+# Copyright (c) 2019-2024, Linux-on-LiteX-VexRiscv Developers
+# SPDX-License-Identifier: BSD-2-Clause
+
+# Board Definition ---------------------------------------------------------------------------------
+
+class Board:
+    soc_kwargs = {
+        "integrated_rom_size"  : 0x10000,
+        "integrated_sram_size" : 0x1800,
+        "l2_size"              : 0
+    }
+    def __init__(self, soc_cls=None, soc_capabilities={}, soc_constants={}):
+        self.soc_cls          = soc_cls
+        self.soc_capabilities = soc_capabilities
+        self.soc_constants    = soc_constants
+
+    def load(self, filename):
+        prog = self.platform.create_programmer()
+        prog.load_bitstream(filename)
+
+    def flash(self, filename):
+        prog = self.platform.create_programmer()
+        prog.flash(0, filename)
+
+#---------------------------------------------------------------------------------------------------
+# Xilinx Boards
+#---------------------------------------------------------------------------------------------------
+
+# Acorn support ------------------------------------------------------------------------------------
+
+class Acorn(Board):
+    soc_kwargs = {"uart_name": "jtag_uart", "sys_clk_freq": int(150e6)}
+    def __init__(self):
+        from litex_boards.targets import sqrl_acorn
+        Board.__init__(self, sqrl_acorn.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            # Storage
+            "sata",
+        })
+
+# Acorn Baseboard Mini -----------------------------------------------------------------------------
+
+class AcornBaseboardMini(Board):
+    soc_kwargs = {"sys_clk_freq": int(150e6)}
+    def __init__(self):
+        from litex_boards.targets import litex_acorn_baseboard_mini
+        Board.__init__(self, litex_acorn_baseboard_mini.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            # Storage
+            "sata",
+        })
+
+# Acorn PCIe support -------------------------------------------------------------------------------
+
+class AcornPCIe(Board):
+    soc_kwargs = {"uart_name": "crossover", "sys_clk_freq": int(125e6)}
+    def __init__(self):
+        from litex_boards.targets import sqrl_acorn
+        Board.__init__(self, sqrl_acorn.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "pcie",
+        })
+
+    def flash(self, filename):
+        prog = self.platform.create_programmer()
+        prog.flash(0, filename.replace(".bin", "_fallback.bin"))
+
+# Arty support -------------------------------------------------------------------------------------
+
+class Arty(Board):
+    def __init__(self):
+        from litex_boards.targets import digilent_arty
+        Board.__init__(self, digilent_arty.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "ethernet",
+            # Storage
+            "spiflash",
+            "sdcard",
+            # GPIOs
+            "leds",
+            "rgb_led",
+            "switches",
+            # Buses
+            "spi",
+            "i2c",
+        })
+
+class ArtyA7(Arty): pass
+
+class ArtyS7(Board):
+    def __init__(self):
+        from litex_boards.targets import digilent_arty_s7
+        Board.__init__(self, digilent_arty_s7.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            # Storage
+            "spiflash",
+            # GPIOs
+            "leds",
+            "rgb_led",
+            "switches",
+            # Buses
+            "spi",
+            "i2c",
+        })
+
+# alinx support ------------------------------------------------------------------------------------
+
+class Ax7020(Board):
+    def __init__(self):
+        from litex_boards.targets import alinx_ax7020
+        Board.__init__(self, alinx_ax7020.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            # GPIOs
+            "leds",
+            "buttons",
+            # Memory (PS DDR)
+            "ps_ddr",
+        })
+
+# NeTV2 support ------------------------------------------------------------------------------------
+
+class NeTV2(Board):
+    def __init__(self):
+        from litex_boards.targets import kosagi_netv2
+        Board.__init__(self, kosagi_netv2.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "ethernet",
+            # Storage
+            "sdcard",
+            # GPIOs
+            "leds",
+            # Video
+            "framebuffer",
+        })
+
+# Genesys2 support ---------------------------------------------------------------------------------
+
+class Genesys2(Board):
+    def __init__(self):
+        from litex_boards.targets import digilent_genesys2
+        Board.__init__(self, digilent_genesys2.BaseSoC, soc_capabilities={
+            # Communication
+            "usb_fifo",
+            "ethernet",
+            # Storage
+            "sdcard",
+        })
+
+# KC705 support ---------------------------------------------------------------------------------
+
+class KC705(Board):
+    def __init__(self):
+        from litex_boards.targets import xilinx_kc705
+        Board.__init__(self, xilinx_kc705.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "ethernet",
+            # Storage
+            "sdcard",
+            #"sata",
+            # GPIOs
+            "leds",
+        })
+
+# VC707 support ---------------------------------------------------------------------------------
+
+class VC707(Board):
+    def __init__(self):
+        from litex_boards.targets import xilinx_vc707
+        Board.__init__(self, xilinx_vc707.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "ethernet",
+            # Storage
+            "sdcard",
+            # GPIOs
+            "leds",
+        })
+
+# KCU105 support -----------------------------------------------------------------------------------
+
+class KCU105(Board):
+    def __init__(self):
+        from litex_boards.targets import xilinx_kcu105
+        Board.__init__(self, xilinx_kcu105.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "ethernet",
+            # Storage
+            "sdcard",
+        })
+
+# AESKU40 support -----------------------------------------------------------------------------------
+
+class AESKU40(Board):
+    soc_kwargs = {"uart_baudrate": 115.2e3} 
+    def __init__(self):
+        from litex_boards.targets import avnet_aesku40
+        Board.__init__(self, avnet_aesku40.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "ethernet",
+            # Storage
+            "sdcard",
+        })
+
+# ZCU104 support -----------------------------------------------------------------------------------
+
+class ZCU104(Board):
+    def __init__(self):
+        from litex_boards.targets import xilinx_zcu104
+        Board.__init__(self, xilinx_zcu104.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+        })
+
+# Nexys4DDR support --------------------------------------------------------------------------------
+
+class Nexys4DDR(Board):
+    def __init__(self):
+        from litex_boards.targets import digilent_nexys4ddr
+        Board.__init__(self, digilent_nexys4ddr.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "ethernet",
+            # Storage
+            "sdcard",
+            # Video
+            "framebuffer",
+        })
+
+# NexysVideo support -------------------------------------------------------------------------------
+
+class NexysVideo(Board):
+    def __init__(self):
+        from litex_boards.targets import digilent_nexys_video
+        Board.__init__(self, digilent_nexys_video.BaseSoC, soc_capabilities={
+            # Communication
+            "usb_fifo",
+            # Storage
+            "sdcard",
+            # Video
+            "framebuffer",
+        })
+
+# MiniSpartan6 support -----------------------------------------------------------------------------
+
+class MiniSpartan6(Board):
+    soc_kwargs = {"l2_size" : 2048} # Use Wishbone and L2 for memory accesses.
+    def __init__(self):
+        from litex_boards.targets import scarabhardware_minispartan6
+        Board.__init__(self, scarabhardware_minispartan6.BaseSoC, soc_capabilities={
+            # Communication
+            "usb_fifo",
+            # Storage
+            "sdcard",
+            # Video
+            "framebuffer",
+        })
+
+# Pipistrello support ------------------------------------------------------------------------------
+
+class Pipistrello(Board):
+    soc_kwargs = {"l2_size" : 2048} # Use Wishbone and L2 for memory accesses.
+    def __init__(self):
+        from litex_boards.targets import saanlima_pipistrello
+        Board.__init__(self, saanlima_pipistrello.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+        })
+
+# XCU1525 support ----------------------------------------------------------------------------------
+
+class XCU1525(Board):
+    def __init__(self):
+        from litex_boards.targets import sqrl_xcu1525
+        Board.__init__(self, sqrl_xcu1525.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            # Storage
+            "sata",
+        })
+
+# AlveoU280 (ES1) support -------------------------------------------------------------------------------
+
+class AlveoU280(Board):
+    soc_kwargs = {
+        "with_hbm"     : True, # Use HBM @ 250MHz (Min).
+        "sys_clk_freq" : 250e6
+    }
+    def __init__(self):
+        from litex_boards.targets import xilinx_alveo_u280
+        Board.__init__(self, xilinx_alveo_u280.BaseSoC, soc_capabilities={
+            # Communication
+            "serial"
+        })
+
+# AlveoU250 support -------------------------------------------------------------------------------
+
+class AlveoU250(Board):
+    def __init__(self):
+        from litex_boards.targets import xilinx_alveo_u250
+        Board.__init__(self, xilinx_alveo_u250.BaseSoC, soc_capabilities={
+            # Communication
+            "serial"
+        })
+
+# SDS1104X-E support -------------------------------------------------------------------------------
+
+class SDS1104XE(Board):
+    soc_kwargs = {"l2_size" : 8192} # Use Wishbone and L2 for memory accesses.
+    def __init__(self):
+        from litex_boards.targets import siglent_sds1104xe
+        Board.__init__(self, siglent_sds1104xe.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "ethernet",
+            # Video
+            "framebuffer",
+        })
+
+    def load(self, filename):
+        prog = self.platform.create_programmer()
+        prog.load_bitstream(filename, device=1)
+
+# QMTECH WuKong support ---------------------------------------------------------------------------
+
+class Qmtech_WuKong(Board):
+    def __init__(self):
+        from litex_boards.targets import qmtech_wukong
+        Board.__init__(self, qmtech_wukong.BaseSoC, soc_capabilities={
+            "leds",
+            # Communication
+            "serial",
+            "ethernet",
+            # Video
+            "framebuffer",
+        })
+
+
+# MNT RKX7 support ---------------------------------------------------------------------------------
+
+class MNT_RKX7(Board):
+    # The mnt_rkx7 target enables ethernet with dynamic IP by default, which pulls
+    # in atoi/strtol from boot.c — symbols that are absent from LiteX's minimal
+    # libc (the default since 2026-03). Ethernet isn't wired up in this board's
+    # soc_capabilities anyway, so disable it at the target level to match intent.
+    soc_kwargs = {"with_ethernet": False}
+    def __init__(self):
+        from litex_boards.targets import mnt_rkx7
+        Board.__init__(self, mnt_rkx7.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            # Storage
+            "spisdcard",
+        })
+
+# STLV7325 -----------------------------------------------------------------------------------------
+
+class STLV7325(Board):
+    def __init__(self):
+        from litex_boards.targets import sitlinv_stlv7325_v1
+        Board.__init__(self, sitlinv_stlv7325_v1.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            # Storage
+            "sdcard",
+        })
+
+class STLV7325_v2(Board):
+    def __init__(self):
+        from litex_boards.targets import sitlinv_stlv7325_v2
+        Board.__init__(self, sitlinv_stlv7325_v2.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            # Storage
+            "sdcard",
+        })
+
+# Decklink Quad HDMI Recorder ----------------------------------------------------------------------
+
+class DecklinkQuadHDMIRecorder(Board):
+    soc_kwargs = {"uart_name": "crossover",  "sys_clk_freq": int(125e6)}
+    def __init__(self):
+        from litex_boards.targets import decklink_quad_hdmi_recorder
+        Board.__init__(self, decklink_quad_hdmi_recorder.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            # Storage
+            "pcie",
+        })
+
+# HSEDA XC7A35T -----------------------------------------------------------------------------------
+class HSEDA_xc7a35t(Board):
+    soc_kwargs = {"sys_clk_freq": int(80e6)}
+    def __init__(self):
+        from litex_boards.targets import hseda_xc7a35t
+        Board.__init__(self, hseda_xc7a35t.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+        })
+
+# Colorlight i9plus support ------------------------------------------------------------------------
+
+class Colorlight_i9Plus(Board):
+    soc_kwargs = {"l2_size" : 2048} # Use Wishbone and L2 for memory accesses.
+    def __init__(self):
+        from litex_boards.targets import colorlight_i9plus
+        Board.__init__(self, colorlight_i9plus.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "ethernet",
+        })
+
+#---------------------------------------------------------------------------------------------------
+# Lattice Boards
+#---------------------------------------------------------------------------------------------------
+
+# Versa ECP5 support -------------------------------------------------------------------------------
+
+class VersaECP5(Board):
+    def __init__(self):
+        from litex_boards.targets import lattice_versa_ecp5
+        Board.__init__(self, lattice_versa_ecp5.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "ethernet",
+        })
+
+# Trenz TE0025 support -----------------------------------------------------------------------------
+
+class TrenzTel0025(Board):
+    soc_kwargs = {"sys_clk_freq": int(75e6)}
+    def __init__(self):
+        from litex_boards.targets import trenz_tel0025
+        Board.__init__(self, trenz_tel0025.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "sdcard",
+            # GPIOs
+            "leds",
+        })
+
+    def load(self, filename):
+        prog = self.platform.create_programmer(cable="ft2232_b")
+        prog.load_bitstream(filename)
+
+# ULX3S support ------------------------------------------------------------------------------------
+
+class ULX3S(Board):
+    soc_kwargs = {
+        "l2_size"                      : 2048, # Use Wishbone and L2 for memory accesses.
+        "video_framebuffer_fifo_depth" : 8192,
+    }
+    def __init__(self):
+        from litex_boards.targets import radiona_ulx3s
+        Board.__init__(self, radiona_ulx3s.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            # Storage
+            "sdcard",
+            # Video,
+            "framebuffer",
+        })
+
+# ULX4M-LD-V2 support ------------------------------------------------------------------------------------
+class ULX4M_LD_V2(Board):
+    soc_kwargs = {"uart_name": "serial", "sys_clk_freq": int(50e6), "l2_size" : 2048} #2048 } #32768} # Use Wishbone and L2 for memory accesse$
+    def __init__(self):
+        from litex_boards.targets import radiona_ulx4m_ld_v2
+        Board.__init__(self, radiona_ulx4m_ld_v2.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            # Storage
+            "sdcard",
+            # Video,
+            "framebuffer",
+            "video_terminal",
+        })
+        
+# HADBadge support ---------------------------------------------------------------------------------
+
+class HADBadge(Board):
+    soc_kwargs = {"l2_size" : 2048} # Use Wishbone and L2 for memory accesses.
+    def __init__(self):
+        from litex_boards.targets import hackaday_hadbadge
+        Board.__init__(self, hackaday_hadbadge.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+        })
+
+    def load(self, filename):
+        os.system("dfu-util --alt 2 --download {} --reset".format(filename))
+
+# OrangeCrab support -------------------------------------------------------------------------------
+
+class OrangeCrab(Board):
+    soc_kwargs = {"sys_clk_freq" : int(64e6) } # Increase sys_clk_freq to 64MHz (48MHz default).
+    def __init__(self):
+        from litex_boards.targets import gsd_orangecrab
+        Board.__init__(self, gsd_orangecrab.BaseSoC, soc_capabilities={
+            # Communication
+            "usb_acm",
+            # Buses
+            "i2c",
+            # Storage
+            "sdcard",
+        })
+
+# Butterstick support ------------------------------------------------------------------------------
+
+class ButterStick(Board):
+    soc_kwargs = {"uart_name": "jtag_uart"}
+    def __init__(self):
+        from litex_boards.targets import gsd_butterstick
+        Board.__init__(self, gsd_butterstick.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "ethernet",
+        })
+
+# Cam Link 4K support ------------------------------------------------------------------------------
+
+class CamLink4K(Board):
+    def __init__(self):
+        from litex_boards.targets import camlink_4k
+        Board.__init__(self, camlink_4k.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+        })
+
+    def load(self, filename):
+        os.system("camlink configure {}".format(filename))
+
+# TrellisBoard support -----------------------------------------------------------------------------
+
+class TrellisBoard(Board):
+    def __init__(self):
+        from litex_boards.targets import trellisboard
+        Board.__init__(self, trellisboard.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            # Storage
+            "sdcard",
+        })
+
+# ECPIX5 support -----------------------------------------------------------------------------------
+
+class ECPIX5(Board):
+    def __init__(self):
+        from litex_boards.targets import lambdaconcept_ecpix5
+        Board.__init__(self, lambdaconcept_ecpix5.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "ethernet",
+            # Storage
+            "sdcard",
+        })
+
+# Colorlight i5 support ----------------------------------------------------------------------------
+
+class Colorlight_i5(Board):
+    soc_kwargs = {"l2_size" : 2048} # Use Wishbone and L2 for memory accesses.
+    def __init__(self):
+        from litex_boards.targets import colorlight_i5
+        Board.__init__(self, colorlight_i5.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "ethernet",
+        })
+
+# Colorlight 5A-75X support ------------------------------------------------------------------------
+
+class Colorlight_5A_75X(Board):
+    soc_kwargs = {
+        "board"         : "5a-75b",
+        "revision"      : "8.2",
+        "with_uartbone" : False,
+        "l2_size"       : 2048, # Use Wishbone and L2 for memory accesses.
+    }
+    def __init__(self):
+        from litex_boards.targets import colorlight_5a_75x
+        Board.__init__(self, colorlight_5a_75x.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "ethernet",
+        })
+
+# Icesugar Pro support -----------------------------------------------------------------------------
+
+class IcesugarPro(Board):
+    soc_kwargs = {"l2_size" : 2048} # Use Wishbone and L2 for memory accesses.
+    def __init__(self):
+        from litex_boards.targets import muselab_icesugar_pro
+        Board.__init__(self, muselab_icesugar_pro.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            # Storage
+            "spiflash",
+            "sdcard",
+        })
+
+# Schoko support -----------------------------------------------------------------------------------
+
+class Schoko(Board):
+    soc_kwargs = {"l2_size" : 8192}
+    def __init__(self):
+        from litex_boards.targets import machdyne_schoko
+        Board.__init__(self, machdyne_schoko.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "usb_host",
+            # Storage
+            "spiflash",
+            #"sdcard",
+            "spisdcard",
+            # Video,
+            "framebuffer",
+        })
+
+# Konfekt support -----------------------------------------------------------------------------------
+
+class Konfekt(Board):
+    soc_kwargs = {"l2_size" : 0}
+    def __init__(self):
+        from litex_boards.targets import machdyne_konfekt
+        Board.__init__(self, machdyne_konfekt.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "usb_host",
+            # Storage
+            #"spiflash",
+            "spisdcard",
+            #"sdcard",
+            # Video,
+            "framebuffer",
+        })
+
+# Noir support -----------------------------------------------------------------------------------
+
+class Noir(Board):
+    soc_kwargs = {"l2_size" : 8192}
+    def __init__(self):
+        from litex_boards.targets import machdyne_noir
+        Board.__init__(self, machdyne_noir.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "usb_host",
+            # Storage
+            "spiflash",
+            "spisdcard",
+            #"sdcard",
+            # Video,
+            "framebuffer",
+        })
+
+#---------------------------------------------------------------------------------------------------
+# Intel Boards
+#---------------------------------------------------------------------------------------------------
+
+# Atum A3 Nano -------------------------------------------------------------------------------------
+
+class AtumA3_Nano(Board):
+    soc_kwargs = {
+        "l2_size"              : 2048,   # Use Wishbone and L2 for memory accesses.
+        "integrated_sram_size" : 0x1000, # Power of 2 so Quartus infers it properly.
+    }
+    def __init__(self):
+        from litex_boards.targets import terasic_atum_a3_nano
+        Board.__init__(self, terasic_atum_a3_nano.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "ethernet",
+            # Storage
+            "sdcard",
+            # GPIOs
+            "leds",
+            "switches",
+            # Video
+            #"framebuffer",
+            #"video_terminal",
+        })
+
+# De10Nano support ---------------------------------------------------------------------------------
+
+class De10Nano(Board):
+    soc_kwargs = {
+        "with_mister_sdram" : True, # Add MiSTer SDRAM extension.
+        "l2_size"           : 2048, # Use Wishbone and L2 for memory accesses.
+        "integrated_sram_size": 0x1000, # Power of 2 so Quartus infers it properly.
+    }
+    def __init__(self):
+        from litex_boards.targets import terasic_de10nano
+        Board.__init__(self, terasic_de10nano.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            # Storage
+            "sdcard",
+            # GPIOs
+            "leds",
+            "switches",
+        })
+
+# De0Nano support ----------------------------------------------------------------------------------
+
+class De0Nano(Board):
+    soc_kwargs = {
+        "l2_size" : 2048, # Use Wishbone and L2 for memory accesses.
+        "integrated_sram_size": 0x1000, # Power of 2 so Quartus infers it properly.
+    }
+    def __init__(self):
+        from litex_boards.targets import terasic_de0nano
+        Board.__init__(self, terasic_de0nano.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+        })
+
+# De1-SoC support ----------------------------------------------------------------------------------
+
+class De1SoC(Board):
+    soc_kwargs = {
+        "l2_size" : 2048, # Use Wishbone and L2 for memory accesses.
+        "integrated_sram_size": 0x1000, # Power of 2 so Quartus infers it properly.
+    }
+    def __init__(self):
+        from litex_boards.targets import terasic_de1soc
+        Board.__init__(self, terasic_de1soc.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            # GPIOs
+            "leds",
+            "switches",
+        })
+
+# QMTECH EP4CE15 support ---------------------------------------------------------------------------
+
+class Qmtech_EP4CE15(Board):
+    soc_kwargs = {
+        "variant" : "ep4ce15",
+        "l2_size" : 2048, # Use Wishbone and L2 for memory accesses.
+        "integrated_sram_size": 0x1000, # Power of 2 so Quartus infers it properly.
+    }
+    def __init__(self):
+        from litex_boards.targets import qmtech_ep4cex5
+        Board.__init__(self, qmtech_ep4cex5.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+        })
+
+# ... and its bigger brother 
+
+class Qmtech_EP4CE55(Board):
+    soc_kwargs = {
+        "variant" : "ep4ce55",
+        "l2_size" :  2048, # Use Wishbone and L2 for memory accesses.
+        "integrated_sram_size": 0x1000, # Power of 2 so Quartus infers it properly.
+    }
+    def __init__(self):
+        from litex_boards.targets import qmtech_ep4cex5
+        Board.__init__(self, qmtech_ep4cex5.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+        })
+
+
+# QMTECH 5CEFA2 support
+# It is possible to build the SoC --cpu-count=2 for this chip
+class Qmtech_5CEFA2(Board):
+    soc_kwargs = {
+        "variant" : "5cefa2",
+        "l2_size" :  2048, # Use Wishbone and L2 for memory accesses.
+        "integrated_sram_size": 0x1000, # Power of 2 so Quartus infers it properly.
+    }
+    def __init__(self):
+        from litex_boards.targets import qmtech_5cefa2
+        Board.__init__(self, qmtech_5cefa2.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+        })
+
+#---------------------------------------------------------------------------------------------------
+# Efinix Boards
+#---------------------------------------------------------------------------------------------------
+
+class TrionT120BGA576DevKit(Board):
+    soc_kwargs = {"l2_size" : 2048} # Use Wishbone and L2 for memory accesses.
+    def __init__(self):
+        from litex_boards.targets import efinix_trion_t120_bga576_dev_kit
+        Board.__init__(self, efinix_trion_t120_bga576_dev_kit.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            # GPIOs
+             "leds",
+        })
+
+class TitaniumTi60F225DevKit(Board):
+    soc_kwargs = {
+        "with_hyperram" : True,
+        "sys_clk_freq"  : 300e6,
+    }
+    def __init__(self):
+        from litex_boards.targets import efinix_titanium_ti60_f225_dev_kit
+        Board.__init__(self, efinix_titanium_ti60_f225_dev_kit.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            # Storage
+            "sdcard",
+            # GPIOs
+            "leds",
+        })
+
+#---------------------------------------------------------------------------------------------------
+# Gowin Boards
+#---------------------------------------------------------------------------------------------------
+
+# Sipeed Tang Nano 20K support ---------------------------------------------------------------------
+
+class Sipeed_tang_nano_20k(Board):
+    soc_kwargs = {"l2_size" : 2048} # Use Wishbone and L2 for memory accesses.
+    def __init__(self):
+        from litex_boards.targets import sipeed_tang_nano_20k
+        Board.__init__(self, sipeed_tang_nano_20k.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "sdcard",
+        })
+
+# Sipeed Tang Primer 20K support -------------------------------------------------------------------
+
+class Sipeed_tang_primer_20k(Board):
+    soc_kwargs = {"l2_size" : 512} # Use Wishbone and L2 for memory accesses.
+    def __init__(self):
+        from litex_boards.targets import sipeed_tang_primer_20k
+        Board.__init__(self, sipeed_tang_primer_20k.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "spisdcard",
+        })
+
+
+#---------------------------------------------------------------------------------------------------
+# Gatemate Boards
+#---------------------------------------------------------------------------------------------------
+
+# CologneChip GateMate EVB support ---------------------------------------------------------------------
+
+class Colognechip_gatemate_evb(Board):
+    soc_kwargs = {"sys_clk_freq": int(24e6)}
+    def __init__(self):
+        from litex_boards.targets import colognechip_gatemate_evb
+        Board.__init__(self, colognechip_gatemate_evb.BaseSoC, soc_capabilities={
+            "serial",
+            "sdcard",
+        })
+
+# Icepi Zero support -----------------------------------------------------------------------------------
+
+class Icepi_zero(Board):
+    soc_kwargs = {"l2_size" : 4096} # Use Wishbone and L2 for memory accesses.
+    def __init__(self):
+        from litex_boards.targets import icepi_zero
+        Board.__init__(self, icepi_zero.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            # Storage
+            "spisdcard",
+            # GPIO
+            "leds",
+            # Video
+            "video_terminal",
+        })
+
+# Machdyne Kolsch support ---------------------------------------------------------------------
+
+class Kolsch(Board):
+    soc_kwargs = {"sys_clk_freq": int(24e6)}
+    def __init__(self):
+        from litex_boards.targets import machdyne_kolsch
+        Board.__init__(self, machdyne_kolsch.BaseSoC, soc_capabilities={
+            "serial",
+            "spisdcard",
+        })
+
+#---------------------------------------------------------------------------------------------------
+# Embedfire Boards
+#---------------------------------------------------------------------------------------------------
+
+# Embedfire rise pro support ---------------------------------------------------------------------
+
+class Embedfire_rise_pro(Board):
+    def __init__(self):
+        from litex_boards.targets import embedfire_rise_pro
+        Board.__init__(self, embedfire_rise_pro.BaseSoC, soc_capabilities={
+            # Communication
+            "serial",
+            "leds",
+            "switches",
+            "sdcard",
+        })
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./buildroot/board/litex_vexriscv/linux.config
+////////////////////////////////////////////////////////////////
+
+CONFIG_SECTION_MISMATCH_WARN_ONLY=y
+CONFIG_EXPERT=y
+
+# Architecture
+CONFIG_ARCH_DEFCONFIG="arch/riscv/configs/defconfig"
+CONFIG_NONPORTABLE=y
+CONFIG_ARCH_RV32I=y
+CONFIG_RISCV_ISA_M=y
+CONFIG_RISCV_ISA_A=y
+CONFIG_RISCV_ISA_C=n
+CONFIG_SIFIVE_PLIC=y
+CONFIG_FPU=n
+CONFIG_SMP=y
+CONFIG_STRICT_KERNEL_RWX=n
+CONFIG_EFI=n
+CONFIG_HVC_RISCV_SBI=y
+CONFIG_NONPORTABLE=y
+CONFIG_HZ_100=y
+
+CONFIG_BLK_DEV_INITRD=y
+CONFIG_INITRAMFS_SOURCE=""
+CONFIG_RD_GZIP=y
+CONFIG_RD_BZIP2=y
+CONFIG_RD_LZMA=y
+CONFIG_RD_XZ=y
+CONFIG_RD_LZO=y
+CONFIG_RD_LZ4=y
+
+# FPGA / SoC
+CONFIG_FPGA=y
+CONFIG_FPGA_MGR_LITEX=y
+CONFIG_LITEX_SOC_CONTROLLER=y
+CONFIG_LITEX_SUBREG_SIZE=4
+
+# Time
+CONFIG_PRINTK_TIME=y
+
+# Clocking
+CONFIG_COMMON_CLK=y
+CONFIG_COMMON_CLK_LITEX=y
+
+# Interrupts
+CONFIG_IRQCHIP=y
+CONFIG_OF_IRQ=y
+CONFIG_HANDLE_DOMAIN_IRQ=y
+CONFIG_LITEX_VEXRISCV_INTC=y
+
+# Ethernet
+CONFIG_NET=y
+CONFIG_PACKET=y
+CONFIG_PACKET_DIAG=y
+CONFIG_INET=y
+CONFIG_PPP=y
+CONFIG_PPP_ASYNC=y
+CONFIG_NETDEVICES=y
+CONFIG_NET_VENDOR_LITEX=y
+CONFIG_LITEX_LITEETH=y
+
+# Serial
+CONFIG_SERIAL_EARLYCON_RISCV_SBI=y
+CONFIG_SERIAL_LITEUART=y
+CONFIG_SERIAL_LITEUART_CONSOLE=y
+
+# Console / TTY
+# CONFIG_VT is not set
+# CONFIG_UNIX98_PTYS is not set
+# CONFIG_LEGACY_PTYS is not set
+# CONFIG_FRAMEBUFFER_CONSOLE is not set
+# CONFIG_LOGO is not set
+
+# GPIO
+CONFIG_GPIO_SYSFS=y
+CONFIG_GPIOLIB=y
+CONFIG_GPIO_LITEX=y
+
+# PWM
+CONFIG_PWM=y
+CONFIG_PWM_LITEX=y
+
+# SPI
+CONFIG_SPI=y
+CONFIG_SPI_LITESPI=y
+CONFIG_SPI_SPIDEV=y
+
+# I2C
+CONFIG_I2C=y
+CONFIG_I2C_LITEX=y
+CONFIG_I2C_CHARDEV=y
+
+# Hardware monitoring
+CONFIG_HWMON=y
+CONFIG_SENSORS_LITEX_HWMON=y
+
+# Framebuffer
+CONFIG_FB=y
+CONFIG_FB_SIMPLE=y
+CONFIG_DRM=y
+CONFIG_DRM_LITEVIDEO=y
+
+# Flash
+CONFIG_MTD=y
+CONFIG_MTD_SPI_NOR=y
+CONFIG_SPI_FLASH_LITEX=y
+
+# MMC
+CONFIG_MMC=y
+CONFIG_MMC_SPI=y
+CONFIG_MMC_LITEX=y
+
+CONFIG_EXT2_FS=y
+CONFIG_EXT3_FS=y
+CONFIG_EXT4_FS=y
+
+# .config in kernel
+CONFIG_IKCONFIG=y
+CONFIG_IKCONFIG_PROC=y
+
+# Filesystem
+CONFIG_FAT_FS=y
+CONFIG_MSDOS_FS=y
+CONFIG_MSDOS_PARTITION=y
+CONFIG_VFAT_FS=y
+CONFIG_FAT_DEFAULT_CODEPAGE=437
+CONFIG_FAT_DEFAULT_IOCHARSET="iso8859-1"
+CONFIG_NCPFS_SMALLDOS=y
+CONFIG_NLS=y
+CONFIG_NLS_CODEPAGE_437=y
+CONFIG_NLS_ASCII=y
+CONFIG_NLS_ISO8859_1=y
+CONFIG_TMPFS=y
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./buildroot/board/litex_vexriscv/linux-fpu.config
+////////////////////////////////////////////////////////////////
+
+CONFIG_FPU=y
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./buildroot/board/litex_vexriscv/linux-nfsroot.config
+////////////////////////////////////////////////////////////////
+
+CONFIG_IP_PNP=y
+# CONFIG_IP_PNP_DHCP is not set
+# CONFIG_IP_PNP_BOOTP is not set
+# CONFIG_IP_PNP_RARP is not set
+CONFIG_NETWORK_FILESYSTEMS=y
+CONFIG_NFS_FS=y
+CONFIG_NFS_V3=y
+CONFIG_ROOT_NFS=y
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./buildroot/board/litex_vexriscv/post-image.sh
+////////////////////////////////////////////////////////////////
+
+#!/bin/bash
+
+set -e
+
+BOARD_DIR="$(dirname $0)"
+GENIMAGE_CFG="${BOARD_DIR}/genimage.cfg"
+GENIMAGE_TMP="${BUILD_DIR}/genimage.tmp"
+
+LINUX_ON_VEXRISCV_OUT_DIR=$BR2_EXTERNAL_LITEX_VEXRISCV_PATH/../images
+DST_DTB=$LINUX_ON_VEXRISCV_OUT_DIR/rv32.dtb
+DST_OPENSBI=$LINUX_ON_VEXRISCV_OUT_DIR/opensbi.bin
+DST_IMAGE=$LINUX_ON_VEXRISCV_OUT_DIR/Image
+DST_ROOTFS_CPIO=$LINUX_ON_VEXRISCV_OUT_DIR/rootfs.cpio
+DST_ROOTFS_CPIO_GZ=$LINUX_ON_VEXRISCV_OUT_DIR/rootfs.cpio.gz
+DST_ROOTFS_EXT4=$LINUX_ON_VEXRISCV_OUT_DIR/rootfs.ext4
+
+rm -f $DST_OPENSBI $DST_ROOTFS_CPIO $DST_ROOTFS_CPIO_GZ $DST_ROOTFS_EXT4 $DST_IMAGE
+ln -s $BINARIES_DIR/fw_jump.bin $DST_OPENSBI
+ln -s $BINARIES_DIR/Image $DST_IMAGE
+ln -s $BINARIES_DIR/rootfs.cpio $DST_ROOTFS_CPIO
+if [ -e $BINARIES_DIR/rootfs.cpio.gz ]; then
+	ln -s $BINARIES_DIR/rootfs.cpio.gz $DST_ROOTFS_CPIO_GZ
+else
+	gzip -c $BINARIES_DIR/rootfs.cpio > $DST_ROOTFS_CPIO_GZ
+fi
+ln -s $BINARIES_DIR/rootfs.ext4 $DST_ROOTFS_EXT4
+
+if [ ! -e $DST_DTB ]; then
+	echo ""
+	echo "Warning: missing file $DST_DTB"
+	echo "a dummy file will be created"
+	echo "must be replaced manually by required rv32.dtb"
+	echo ""
+	touch $DST_OPENSBI
+fi
+
+if [ -e $DST_DTB ]; then
+	DTB_DTS=${GENIMAGE_TMP}/rv32.dts
+	dtc -I dtb -O dts -o $DTB_DTS $DST_DTB
+	INITRD_START=$(sed -n -E 's/.*linux,initrd-start[[:space:]]*=[[:space:]]*<([^>]+)>.*/\1/p' $DTB_DTS | head -n 1)
+	if [ -n "$INITRD_START" ]; then
+		INITRD_SIZE=$(stat -c%s $DST_ROOTFS_CPIO_GZ)
+		INITRD_END=$(printf "0x%x" $((INITRD_START + INITRD_SIZE)))
+		sed -i -E "s/(linux,initrd-end[[:space:]]*=[[:space:]]*<)0x[0-9a-fA-F]+(>)/\1${INITRD_END}\2/" $DTB_DTS
+		dtc -I dts -O dtb -o $DST_DTB $DTB_DTS
+	fi
+fi
+
+# Pass an empty rootpath. genimage makes a full copy of the given rootpath to
+# ${GENIMAGE_TMP}/root so passing TARGET_DIR would be a waste of time and disk
+# space. We don't rely on genimage to build the rootfs image, just to insert a
+# pre-built one in the disk image.
+
+trap 'rm -rf "${ROOTPATH_TMP}"' EXIT
+ROOTPATH_TMP="$(mktemp -d)"
+
+rm -rf "${GENIMAGE_TMP}"
+
+genimage \
+    --rootpath "${ROOTPATH_TMP}"   \
+    --tmppath "${GENIMAGE_TMP}"    \
+    --inputpath "${LINUX_ON_VEXRISCV_OUT_DIR}"  \
+    --outputpath "${LINUX_ON_VEXRISCV_OUT_DIR}" \
+    --config "${GENIMAGE_CFG}"
+
+exit $?
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./buildroot/board/litex_vexriscv_usbhost/linux.config
+////////////////////////////////////////////////////////////////
+
+CONFIG_SECTION_MISMATCH_WARN_ONLY=y
+
+# Architecture
+CONFIG_ARCH_DEFCONFIG="arch/riscv/configs/defconfig"
+CONFIG_NONPORTABLE=y
+CONFIG_ARCH_RV32I=y
+CONFIG_RISCV_ISA_M=y
+CONFIG_RISCV_ISA_A=y
+CONFIG_RISCV_ISA_C=n
+CONFIG_SIFIVE_PLIC=y
+CONFIG_FPU=n
+CONFIG_SMP=y
+CONFIG_STRICT_KERNEL_RWX=n
+CONFIG_EFI=n
+CONFIG_HVC_RISCV_SBI=y
+CONFIG_NONPORTABLE=y
+
+CONFIG_BLK_DEV_INITRD=y
+CONFIG_INITRAMFS_SOURCE=""
+CONFIG_RD_GZIP=y
+CONFIG_RD_BZIP2=y
+CONFIG_RD_LZMA=y
+CONFIG_RD_XZ=y
+CONFIG_RD_LZO=y
+CONFIG_RD_LZ4=y
+
+# FPGA / SoC
+CONFIG_FPGA=y
+CONFIG_FPGA_MGR_LITEX=y
+CONFIG_LITEX_SOC_CONTROLLER=y
+CONFIG_LITEX_SUBREG_SIZE=4
+
+# Time
+CONFIG_PRINTK_TIME=y
+
+# Clocking
+CONFIG_COMMON_CLK=y
+CONFIG_COMMON_CLK_LITEX=y
+
+# Interrupts
+CONFIG_IRQCHIP=y
+CONFIG_OF_IRQ=y
+CONFIG_HANDLE_DOMAIN_IRQ=y
+CONFIG_LITEX_VEXRISCV_INTC=y
+
+# Ethernet
+CONFIG_NET=y
+CONFIG_PACKET=y
+CONFIG_PACKET_DIAG=y
+CONFIG_INET=y
+CONFIG_PPP=y
+CONFIG_PPP_ASYNC=y
+CONFIG_NETDEVICES=y
+CONFIG_NET_VENDOR_LITEX=y
+CONFIG_LITEX_LITEETH=y
+
+# Serial
+CONFIG_SERIAL_EARLYCON_RISCV_SBI=y
+CONFIG_SERIAL_LITEUART=y
+CONFIG_SERIAL_LITEUART_CONSOLE=y
+
+# GPIO
+CONFIG_GPIO_SYSFS=y
+CONFIG_GPIOLIB=y
+CONFIG_GPIO_LITEX=y
+
+# PWM
+CONFIG_PWM=y
+CONFIG_PWM_LITEX=y
+
+# SPI
+CONFIG_SPI=y
+CONFIG_SPI_LITESPI=y
+CONFIG_SPI_SPIDEV=y
+
+# I2C
+CONFIG_I2C=y
+CONFIG_I2C_LITEX=y
+CONFIG_I2C_CHARDEV=y
+
+# Hardware monitoring
+CONFIG_HWMON=y
+CONFIG_SENSORS_LITEX_HWMON=y
+
+# Framebuffer
+CONFIG_FB=y
+CONFIG_FB_SIMPLE=y
+CONFIG_FRAMEBUFFER_CONSOLE=y
+CONFIG_FRAMEBUFFER_CONSOLE_DETECT_PRIMARY=y
+CONFIG_LOGO=y
+CONFIG_DRM=y
+CONFIG_DRM_LITEVIDEO=y
+
+# Flash
+CONFIG_MTD=y
+CONFIG_MTD_SPI_NOR=y
+CONFIG_SPI_FLASH_LITEX=y
+
+# MMC
+CONFIG_MMC=y
+CONFIG_MMC_SPI=y
+CONFIG_MMC_LITEX=y
+
+CONFIG_EXT2_FS=y
+CONFIG_EXT3_FS=y
+CONFIG_EXT4_FS=y
+
+# .config in kernel
+CONFIG_IKCONFIG=y
+CONFIG_IKCONFIG_PROC=y
+
+# Filesystem
+CONFIG_FAT_FS=y
+CONFIG_MSDOS_FS=y
+CONFIG_MSDOS_PARTITION=y
+CONFIG_VFAT_FS=y
+CONFIG_FAT_DEFAULT_CODEPAGE=437
+CONFIG_FAT_DEFAULT_IOCHARSET="iso8859-1"
+CONFIG_NCPFS_SMALLDOS=y
+CONFIG_NLS=y
+CONFIG_NLS_CODEPAGE_437=y
+CONFIG_NLS_ASCII=y
+CONFIG_NLS_ISO8859_1=y
+CONFIG_TMPFS=y
+
+# USB
+CONFIG_SOUND=y
+CONFIG_SND=y
+CONFIG_SND_USB_AUDIO=y
+CONFIG_USB_HIDDEV=y
+CONFIG_USB_LED_TRIG=y
+CONFIG_USB=y
+CONFIG_USB_ANNOUNCE_NEW_DEVICES=y
+CONFIG_USB_OHCI_HCD=y
+CONFIG_USB_OHCI_HCD_PLATFORM=y
+CONFIG_USB_STORAGE=y
+CONFIG_USB_SERIAL=y
+CONFIG_USB_SERIAL_FTDI_SIO=y
+CONFIG_USB_GADGET=y
+CONFIG_USB_AUDIO=y
+
+CONFIG_SCSI=y
+CONFIG_BLK_DEV_SD=y
+
+CONFIG_INPUT_MOUSEDEV=y
+CONFIG_INPUT_MOUSEDEV_PSAUX=y
+CONFIG_INPUT_EVDEV=y
+
+# USB wireless support
+CONFIG_WLAN=y
+CONFIG_WIRELESS=y
+CONFIG_USB_NET_DRIVERS=y
+CONFIG_WLAN_VENDOR_REALTEK=y
+CONFIG_RTL8XXXU=y
+CONFIG_MAC80211=y
+CONFIG_CRYPTO=y
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./buildroot/Config.in
+////////////////////////////////////////////////////////////////
+
+source "$BR2_EXTERNAL_LITEX_VEXRISCV_PATH/package/dhrystone-opt/Config.in"
+
+config BR2_PACKAGE_VEXRISCV_AES
+	bool "VexRiscv AES custom instruction"
+	help
+	  Enable VexRiscv AES custom instruction usage in openssl and dropbear
+
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./buildroot/configs/litex_vexriscv_defconfig
+////////////////////////////////////////////////////////////////
+
+# Target options
+BR2_riscv=y
+BR2_RISCV_32=y
+
+# Instruction Set Extensions
+BR2_riscv_custom=y
+# Backward compat (buildroot 2023.02.5 LTS).
+BR2_RISCV_ISA_CUSTOM_RVM=y
+BR2_RISCV_ISA_CUSTOM_RVA=y
+BR2_RISCV_ISA_CUSTOM_RVC=n
+# make.py enables FPU/hard-float options in the generated board defconfig.
+#BR2_RISCV_ISA_CUSTOM_RVF=y
+#BR2_RISCV_ISA_CUSTOM_RVD=y
+# Since commit cbd91e89e4 (2023-08-18 / 2023.11).
+BR2_RISCV_ISA_RVM=y
+BR2_RISCV_ISA_RVA=y
+BR2_RISCV_ISA_RVC=n
+# make.py enables FPU/hard-float options in the generated board defconfig.
+#BR2_RISCV_ISA_RVF=y
+#BR2_RISCV_ISA_RVD=y
+BR2_RISCV_ABI_ILP32=y
+
+# Patches
+BR2_GLOBAL_PATCH_DIR="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/patches"
+
+# GCC
+BR2_GCC_VERSION_13_X=y
+
+# System
+BR2_TARGET_GENERIC_GETTY=y
+BR2_TARGET_GENERIC_GETTY_PORT="console"
+
+# Filesystem
+BR2_TARGET_ROOTFS_CPIO=y
+BR2_TARGET_ROOTFS_CPIO_GZIP=y
+BR2_TARGET_ROOTFS_EXT2=y
+BR2_TARGET_ROOTFS_EXT2_4=y
+
+# Image
+BR2_ROOTFS_POST_IMAGE_SCRIPT="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/board/litex_vexriscv/post-image.sh"
+
+# Kernel header version
+BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_9=y
+
+# Kernel (mainline + patches set)
+BR2_LINUX_KERNEL=y
+BR2_LINUX_KERNEL_CUSTOM_VERSION=y
+BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.9"
+BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
+BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/board/litex_vexriscv/linux.config"
+BR2_LINUX_KERNEL_IMAGE=y
+
+# Bootloader (opensbi)
+BR2_TARGET_OPENSBI=y
+BR2_TARGET_OPENSBI_CUSTOM_GIT=y
+BR2_TARGET_OPENSBI_CUSTOM_REPO_URL="https://github.com/litex-hub/opensbi.git"
+BR2_TARGET_OPENSBI_CUSTOM_REPO_VERSION="1.3.1-linux-on-litex-vexriscv"
+BR2_TARGET_OPENSBI_PLAT="litex/vexriscv"
+BR2_TARGET_OPENSBI_INSTALL_DYNAMIC_IMG=n
+
+# Rootfs customisation
+BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/board/litex_vexriscv/rootfs_overlay"
+
+# Required tools to create the SD image
+BR2_PACKAGE_HOST_DOSFSTOOLS=y
+BR2_PACKAGE_HOST_GENIMAGE=y
+BR2_PACKAGE_HOST_MTOOLS=y
+
+# Extra packages
+BR2_PACKAGE_PPPD=y
+#BR2_PACKAGE_DHRYSTONE_OPT=y
+#BR2_PACKAGE_MICROPYTHON=y
+#BR2_PACKAGE_SPIDEV_TEST=y
+#BR2_PACKAGE_MTD=y
+#BR2_PACKAGE_MTD_JFFS_UTILS=y
+
+# Crypto
+#BR2_PACKAGE_LIBATOMIC_OPS_ARCH_SUPPORTS=y
+#BR2_PACKAGE_LIBATOMIC_OPS=y
+#BR2_PACKAGE_OPENSSL=y
+#BR2_PACKAGE_LIBRESSL=y
+#BR2_PACKAGE_LIBRESSL_BIN=y
+#BR2_PACKAGE_HAVEGED=y
+# make.py enables hardware AES options in the generated board defconfig.
+#BR2_PACKAGE_VEXRISCV_AES=y
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./buildroot/external.mk
+////////////////////////////////////////////////////////////////
+
+include $(sort $(wildcard $(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/package/*/*.mk))
+
+ifeq ($(BR2_PACKAGE_VEXRISCV_AES),y)
+LIBOPENSSL_CFLAGS+=-DVEXRISCV_AES
+LIBRESSL_CONF_OPTS+=-DVEXRISCV_AES=ON
+endif
+
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./buildroot/package/dhrystone-opt/Config.in
+////////////////////////////////////////////////////////////////
+
+config BR2_PACKAGE_DHRYSTONE_OPT
+	bool "dhrystone-opt"
+	help
+	  easy-to-use integer benchmark, with optimisations
+
+	  http://www.netlib.org/benchmark/dhry-c
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./buildroot/package/dhrystone-opt/dhrystone-opt.mk
+////////////////////////////////////////////////////////////////
+
+################################################################################
+#
+# dhrystone-opt
+#
+################################################################################
+
+DHRYSTONE_OPT_VERSION = 2
+DHRYSTONE_OPT_SOURCE = dhry-c
+DHRYSTONE_OPT_SITE = http://www.netlib.org/benchmark
+
+define DHRYSTONE_OPT_EXTRACT_CMDS
+	(cd $(@D) && $(SHELL) $(DHRYSTONE_OPT_DL_DIR)/$($(PKG)_SOURCE))
+	$(Q)cp $(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/package/dhrystone-opt/Makefile $(@D)/
+	$(Q)cp $(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/package/dhrystone-opt/*.S $(@D)/
+endef
+
+define DHRYSTONE_OPT_BUILD_CMDS
+	$(TARGET_CONFIGURE_OPTS) $(MAKE) -C $(@D)
+endef
+
+define DHRYSTONE_OPT_INSTALL_TARGET_CMDS
+	$(INSTALL) -D $(@D)/dhrystone $(TARGET_DIR)/usr/bin/dhrystone-opt
+endef
+
+$(eval $(generic-package))
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./cat_src.sh
+////////////////////////////////////////////////////////////////
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+# cat_src.sh
+#
+# Aggregate the lolv/ project into review-friendly text dumps.
+#
+# Run from:
+#   $WORKROOT/lolv
+#
+# Outputs:
+#   reports/cat_lolv_readmes.txt
+#   reports/cat_lolv_modified_scripts.txt
+#   reports/cat_lolv_all.txt
+
+ROOT="$(pwd)"
+OUT_DIR="./reports"
+
+DOCS_OUT="$OUT_DIR/cat_lolv_readmes.txt"
+SCRIPTS_OUT="$OUT_DIR/cat_lolv_modified_scripts.txt"
+ALL_OUT="$OUT_DIR/cat_lolv_all.txt"
+
+mkdir -p "$OUT_DIR"
+
+: > "$DOCS_OUT"
+: > "$SCRIPTS_OUT"
+: > "$ALL_OUT"
+
+write_header() {
+    local out_file="$1"
+    local title="$2"
+
+    {
+        echo "================================================================"
+        echo "$title"
+        echo "ROOT: $ROOT"
+        echo "GENERATED: $(date -Is)"
+        echo "================================================================"
+        echo
+    } >> "$out_file"
+}
+
+append_file_hash() {
+    local out_file="$1"
+    local file_path="$2"
+
+    {
+        echo
+        echo "################################################################"
+        echo "# FILE: $file_path"
+        echo "################################################################"
+        echo
+        cat "$file_path"
+        echo
+    } >> "$out_file"
+}
+
+append_file_slash() {
+    local out_file="$1"
+    local file_path="$2"
+
+    {
+        echo
+        echo "////////////////////////////////////////////////////////////////"
+        echo "// FILE: $file_path"
+        echo "////////////////////////////////////////////////////////////////"
+        echo
+        cat "$file_path"
+        echo
+    } >> "$out_file"
+}
+
+write_header "$DOCS_OUT" "LOLV README / DOCS"
+write_header "$SCRIPTS_OUT" "LOLV MODIFIED SCRIPTS / GATEWARE / CONFIGS"
+
+echo "== collecting lolv README/docs =="
+
+find . \
+  -path './.git' -prune -o \
+  -path './build' -prune -o \
+  -path './images' -prune -o \
+  -path './__pycache__' -prune -o \
+  -path './reports/cat_*' -prune -o \
+  -type f \( -name '*.md' -o -name '*.txt' \) -print \
+| sort \
+| while read -r doc_file; do
+    append_file_hash "$DOCS_OUT" "$doc_file"
+done
+
+echo "wrote $DOCS_OUT"
+
+echo
+echo "== collecting lolv modified scripts/gateware/configs =="
+
+{
+  find . \
+    -path './.git' -prune -o \
+    -path './build' -prune -o \
+    -path './images' -prune -o \
+    -path './__pycache__' -prune -o \
+    -path './reports' -prune -o \
+    -type f \( \
+      -name '*.py' -o \
+      -name '*.sh' -o \
+      -name '*.vhd' -o \
+      -name '*.vhdl' -o \
+      -name '*.v' -o \
+      -name '*.dts' -o \
+      -name '*.dtsi' -o \
+      -name '*.json' -o \
+      -name '*.config' -o \
+      -name '*defconfig' -o \
+      -name 'Config.in' -o \
+      -name '*.mk' \
+    \) -print
+} \
+| sort \
+| while read -r src_file; do
+    append_file_slash "$SCRIPTS_OUT" "$src_file"
+done
+
+echo "wrote $SCRIPTS_OUT"
+
+echo
+echo "== writing combined lolv aggregate =="
+
+{
+    echo "================================================================"
+    echo "LOLV COMPLETE AGGREGATE"
+    echo "ROOT: $ROOT"
+    echo "GENERATED: $(date -Is)"
+    echo "================================================================"
+    echo
+    echo "Included sections:"
+    echo "  1. README/docs"
+    echo "  2. Modified scripts/gateware/configs"
+    echo
+    echo "Generated component files:"
+    echo "  $DOCS_OUT"
+    echo "  $SCRIPTS_OUT"
+    echo
+    echo
+    echo "################################################################"
+    echo "# SECTION 1: README / DOCS"
+    echo "################################################################"
+    echo
+    cat "$DOCS_OUT"
+    echo
+    echo
+    echo "################################################################"
+    echo "# SECTION 2: MODIFIED SCRIPTS / GATEWARE / CONFIGS"
+    echo "################################################################"
+    echo
+    cat "$SCRIPTS_OUT"
+    echo
+} >> "$ALL_OUT"
+
+echo "wrote $ALL_OUT"
+
+echo
+echo "DONE."
+echo "Docs/readmes aggregate: $DOCS_OUT"
+echo "Modified scripts aggregate: $SCRIPTS_OUT"
+echo "Combined aggregate: $ALL_OUT"
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./gateware/header_probe.v
+////////////////////////////////////////////////////////////////
+
+/* Generated by Yosys 0.66+142 (git sha1 fe8f29b5f, Release, GNU /usr/bin/c++ 11.4.0) */
+
+module header_probe(clk, rst, enable, oe, out_value, in_value, gpio);
+  input clk;
+  wire clk;
+  input rst;
+  wire rst;
+  input enable;
+  wire enable;
+  input [11:0] oe;
+  wire [11:0] oe;
+  input [11:0] out_value;
+  wire [11:0] out_value;
+  output [11:0] in_value;
+  wire [11:0] in_value;
+  inout [11:0] gpio;
+  wire [11:0] gpio;
+  wire _00_;
+  wire _01_;
+  wire _02_;
+  wire _03_;
+  wire _04_;
+  wire _05_;
+  wire _06_;
+  wire _07_;
+  wire _08_;
+  wire _09_;
+  wire _10_;
+  wire _11_;
+  wire _12_;
+  wire _13_;
+  wire _14_;
+  wire _15_;
+  wire _16_;
+  wire _17_;
+  wire _18_;
+  wire _19_;
+  wire _20_;
+  wire _21_;
+  wire _22_;
+  wire _23_;
+  assign _11_ = oe[1] & enable;
+  assign _17_ = oe[2] & enable;
+  assign _18_ = oe[3] & enable;
+  assign _19_ = oe[4] & enable;
+  assign _20_ = oe[5] & enable;
+  assign _00_ = oe[0] & enable;
+  assign _21_ = oe[6] & enable;
+  assign _22_ = oe[7] & enable;
+  assign _23_ = oe[8] & enable;
+  assign _01_ = oe[9] & enable;
+  assign _02_ = oe[10] & enable;
+  assign _03_ = oe[11] & enable;
+  assign _04_ = _03_ ? out_value[11] : 1'bz;
+  assign _05_ = _02_ ? out_value[10] : 1'bz;
+  assign _06_ = _01_ ? out_value[9] : 1'bz;
+  assign _07_ = _23_ ? out_value[8] : 1'bz;
+  assign _08_ = _22_ ? out_value[7] : 1'bz;
+  assign _09_ = _21_ ? out_value[6] : 1'bz;
+  assign _10_ = _20_ ? out_value[5] : 1'bz;
+  assign _12_ = _19_ ? out_value[4] : 1'bz;
+  assign _13_ = _18_ ? out_value[3] : 1'bz;
+  assign _14_ = _17_ ? out_value[2] : 1'bz;
+  assign _15_ = _11_ ? out_value[1] : 1'bz;
+  assign _16_ = _00_ ? out_value[0] : 1'bz;
+  assign gpio = { _04_, _05_, _06_, _07_, _08_, _09_, _10_, _12_, _13_, _14_, _15_, _16_ };
+  assign in_value = gpio;
+endmodule
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./gateware/header_probe.vhd
+////////////////////////////////////////////////////////////////
+
+library ieee;
+use ieee.std_logic_1164.all;
+
+entity header_probe is
+  port (
+    clk       : in    std_logic;
+    rst       : in    std_logic;
+
+    enable    : in    std_logic;
+    oe        : in    std_logic_vector(11 downto 0);
+    out_value : in    std_logic_vector(11 downto 0);
+    in_value  : out   std_logic_vector(11 downto 0);
+
+    gpio      : inout std_logic_vector(11 downto 0)
+  );
+end entity header_probe;
+
+architecture rtl of header_probe is
+begin
+  gen_gpio : for i in 0 to 11 generate
+  begin
+    gpio(i) <= out_value(i) when enable = '1' and oe(i) = '1' else 'Z';
+    in_value(i) <= gpio(i);
+  end generate;
+end architecture rtl;
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./make.py
+////////////////////////////////////////////////////////////////
+
+#!/usr/bin/env python3
+
+#
+# This file is part of Linux-on-LiteX-VexRiscv
+#
+# Copyright (c) 2019-2024, Linux-on-LiteX-VexRiscv Developers
+# SPDX-License-Identifier: BSD-2-Clause
+
+import os
+import re
+import sys
+import argparse
+import shutil
+
+from litex.soc.integration.builder import Builder
+from litex.soc.integration.soc import SoCBusHandler
+from litex.soc.cores.cpu.vexriscv_smp import VexRiscvSMP
+
+from boards import *
+from soc_linux import SoCLinux
+
+#---------------------------------------------------------------------------------------------------
+# Helpers
+#---------------------------------------------------------------------------------------------------
+def parse_kwargs(remaining):
+    kwargs = {}
+
+    for item in remaining:
+        item = item.lstrip("-")
+        split = item.split('=', 2)
+        key = split[0].replace('-', '_')
+        if len(key) == 0:
+            continue
+        if len(split) < 2:
+            kwargs[key] = True
+        else:
+            kwargs[key] = split[1]
+    return kwargs
+
+def camel_to_snake(name):
+    name = re.sub(r'(?<=[a-z])(?=[A-Z])', '_', name)
+    return name.lower()
+
+def get_supported_boards():
+    board_classes = {}
+    for name, obj in globals().items():
+        name = camel_to_snake(name)
+        if isinstance(obj, type) and issubclass(obj, Board) and obj is not Board:
+            board_classes[name] = obj
+    return board_classes
+
+def get_buildroot_base_defconfig():
+    return "litex_vexriscv_defconfig"
+
+def get_buildroot_config_overrides(
+    *,
+    with_usb_host  = False,
+    with_aes       = False,
+    with_fpu       = False,
+    with_nfs_root  = False,
+):
+    overrides              = []
+    linux_config_fragments = []
+
+    if with_usb_host:
+        overrides += [
+            'BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="'
+            '$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/board/litex_vexriscv_usbhost/linux.config"',
+            'BR2_ROOTFS_OVERLAY="'
+            '$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/board/litex_vexriscv_usbhost/rootfs_overlay"',
+        ]
+
+    if with_fpu:
+        linux_config_fragments.append(
+            "$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/board/litex_vexriscv/linux-fpu.config"
+        )
+        overrides += [
+            "BR2_RISCV_ISA_CUSTOM_RVF=y",
+            "BR2_RISCV_ISA_CUSTOM_RVD=y",
+            "BR2_RISCV_ISA_RVF=y",
+            "BR2_RISCV_ISA_RVD=y",
+            "# BR2_RISCV_ABI_ILP32 is not set",
+            "BR2_RISCV_ABI_ILP32D=y",
+        ]
+
+    if with_aes:
+        overrides += [
+            "BR2_PACKAGE_OPENSSL=y",
+            "BR2_PACKAGE_VEXRISCV_AES=y",
+        ]
+
+    if with_nfs_root:
+        linux_config_fragments.append(
+            "$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/board/litex_vexriscv/linux-nfsroot.config"
+        )
+        overrides += [
+            "BR2_TARGET_ROOTFS_TAR=y",
+        ]
+
+    if linux_config_fragments:
+        overrides += [
+            'BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="{}"'.format(
+                " ".join(linux_config_fragments)
+            ),
+        ]
+
+    return overrides
+
+def set_buildroot_config(config, symbol, value, after=None):
+    unset = f"# {symbol} is not set"
+    for i, line in enumerate(config):
+        if (
+            line.startswith(f"{symbol}=") or
+            line.startswith(f"#{symbol}=") or
+            line == unset
+        ):
+            config[i] = f"{symbol}={value}"
+            return
+
+    if after is not None:
+        after_unset = f"# {after} is not set"
+        for i, line in enumerate(config):
+            if (
+                line.startswith(f"{after}=") or
+                line.startswith(f"#{after}=") or
+                line == after_unset
+            ):
+                config.insert(i + 1, f"{symbol}={value}")
+                return
+
+    config.append(f"{symbol}={value}")
+
+def unset_buildroot_config(config, symbol):
+    unset = f"# {symbol} is not set"
+    for i, line in enumerate(config):
+        if line.startswith(f"{symbol}=") or line == unset:
+            config[i] = unset
+            return
+    config.append(unset)
+
+def generate_buildroot_defconfig(
+    filename,
+    with_usb_host = False,
+    with_aes      = False,
+    with_fpu      = False,
+    with_nfs_root = False,
+):
+    base_defconfig = get_buildroot_base_defconfig()
+    base_path      = os.path.join(
+        os.path.dirname(__file__),
+        "buildroot",
+        "configs",
+        base_defconfig,
+    )
+
+    with open(base_path, encoding="utf-8") as f:
+        config = f.read().rstrip().splitlines()
+
+    insert_after = {
+        "BR2_RISCV_ABI_ILP32D"                  : "BR2_RISCV_ABI_ILP32",
+        "BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES": "BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE",
+        "BR2_TARGET_ROOTFS_TAR"                 : "BR2_TARGET_ROOTFS_EXT2_4",
+    }
+    for option in get_buildroot_config_overrides(
+        with_usb_host = with_usb_host,
+        with_aes      = with_aes,
+        with_fpu      = with_fpu,
+        with_nfs_root = with_nfs_root,
+    ):
+        if option.startswith("# ") and option.endswith(" is not set"):
+            unset_buildroot_config(config, option[2:-11])
+        else:
+            symbol, value = option.split("=", 1)
+            set_buildroot_config(config, symbol, value, after=insert_after.get(symbol))
+
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write("\n".join(config))
+        f.write("\n")
+
+    return base_defconfig
+
+supported_boards = get_supported_boards()
+
+#---------------------------------------------------------------------------------------------------
+# Build
+#---------------------------------------------------------------------------------------------------
+
+def main():
+    description = "Linux on LiteX-VexRiscv\n\n"
+    description += "Available boards:\n"
+    for name in sorted(supported_boards.keys()):
+        description += "- " + name + "\n"
+    parser = argparse.ArgumentParser(description=description, formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument("--board",          required=True,               help="FPGA board.")
+    parser.add_argument("--device",         default=None,                help="FPGA device.")
+    parser.add_argument("--variant",        default=None,                help="FPGA board variant.")
+    parser.add_argument("--revision",       default=None,                help="FPGA board revision.")
+    parser.add_argument("--toolchain",      default=None,                help="Toolchain use to build.")
+    parser.add_argument("--bus-standard",   default=None,                help="SoC bus standard.", choices=SoCBusHandler.supported_standard)
+    parser.add_argument("--uart-baudrate",  default=115.2e3, type=float, help="UART baudrate.")
+    parser.add_argument("--build",          action="store_true",         help="Build bitstream.")
+    parser.add_argument("--load",           action="store_true",         help="Load bitstream (to SRAM).")
+    parser.add_argument("--flash",          action="store_true",         help="Flash bitstream/images (to Flash).")
+    parser.add_argument("--doc",            action="store_true",         help="Build documentation.")
+    parser.add_argument("--local-ip",       default="192.168.1.50",      help="Local IP address.")
+    parser.add_argument("--remote-ip",      default="192.168.1.100",     help="Remote IP address of TFTP server.")
+    parser.add_argument("--spi-data-width", default=8,   type=int,       help="SPI data width (max bits per xfer).")
+    parser.add_argument("--spi-clk-freq",   default=1e6, type=int,       help="SPI clock frequency.")
+    parser.add_argument("--fdtoverlays",    default="",                  help="Device Tree Overlays to apply.")
+    parser.add_argument("--rootfs",         default="ram0",              help="Location of the RootFS.",
+        choices=["ram0", "mmcblk0p2", "nfs"]
+    )
+    parser.add_argument("--nfs-root",       default="/srv/nfs/litex-vexriscv",
+        help="NFS exported root directory when using --rootfs=nfs.")
+    parser.add_argument("--nfs-options",    default="vers=3,tcp,nolock",
+        help="NFS mount options when using --rootfs=nfs.")
+    parser.add_argument("soc_kwargs", nargs=argparse.REMAINDER)
+    VexRiscvSMP.args_fill(parser)
+    args = parser.parse_args()
+
+    # Board(s) selection ---------------------------------------------------------------------------
+    if args.board == "all":
+        board_names = list(supported_boards.keys())
+    else:
+        board_names = [args.board]
+
+    # Board(s) iteration ---------------------------------------------------------------------------
+    for board_name in board_names:
+        board = supported_boards[board_name]()
+        soc_kwargs = Board.soc_kwargs
+        soc_kwargs.update(board.soc_kwargs)
+        soc_kwargs.update(parse_kwargs(args.soc_kwargs))
+
+        if args.rootfs == "nfs" and "ethernet" not in board.soc_capabilities:
+            raise ValueError(f"Board {board_name} does not support Ethernet required by --rootfs=nfs")
+
+        # CPU parameters ---------------------------------------------------------------------------
+
+        # If Wishbone Memory is forced, enabled L2 Cache (if not already):
+        if args.with_wishbone_memory:
+            soc_kwargs["l2_size"] = max(soc_kwargs["l2_size"], 2048) # Defaults to 2048.
+        # Else if board is configured to use L2 Cache, force use of Wishbone Memory on VexRiscv-SMP.
+        else:
+            args.with_wishbone_memory = soc_kwargs["l2_size"] != 0
+
+        if "usb_host" in board.soc_capabilities:
+            args.with_coherent_dma = True
+
+        VexRiscvSMP.args_read(args)
+
+        # SoC parameters ---------------------------------------------------------------------------
+        if args.device is not None:
+            soc_kwargs.update(device=args.device)
+        if args.variant is not None:
+            soc_kwargs.update(variant=args.variant)
+        if args.revision is not None:
+            soc_kwargs.update(revision=args.revision)
+        if args.toolchain is not None:
+            soc_kwargs.update(toolchain=args.toolchain)
+        if args.bus_standard is not None:
+            soc_kwargs.update(bus_standard=args.bus_standard)
+
+        # UART.
+        soc_kwargs["uart_baudrate"] = int(args.uart_baudrate)
+        # Default to "serial" when no special UART is requested. SoCCore also
+        # defaults to "serial", but some LiteX-Boards targets read uart_name out
+        # of kwargs before forwarding (ex: lambdaconcept_ecpix5) and KeyError
+        # when the kwarg is absent, so set it unconditionally here.
+        soc_kwargs.setdefault("uart_name", "serial")
+        if "crossover" in board.soc_capabilities:
+            soc_kwargs.update(uart_name="crossover")
+        if "usb_fifo" in board.soc_capabilities:
+            soc_kwargs.update(uart_name="usb_fifo")
+        if "usb_acm" in board.soc_capabilities:
+            soc_kwargs.update(uart_name="usb_acm")
+
+        # Peripherals
+        if "leds" in board.soc_capabilities:
+            soc_kwargs.update(with_led_chaser=True)
+        if "ethernet" in board.soc_capabilities:
+            soc_kwargs.update({
+                "with_ethernet" : True,
+                "eth_ip"        : args.local_ip,
+                "remote_ip"     : args.remote_ip,
+            })
+        if "pcie" in board.soc_capabilities:
+            soc_kwargs.update(with_pcie=True)
+        if "spiflash" in board.soc_capabilities:
+            soc_kwargs.update(with_spi_flash=True)
+        if "sata" in board.soc_capabilities:
+            soc_kwargs.update(with_sata=True)
+        if "video_terminal" in board.soc_capabilities:
+            soc_kwargs.update(with_video_terminal=True)
+        if "framebuffer" in board.soc_capabilities:
+            soc_kwargs.update(with_video_framebuffer=True)
+        if "usb_host" in board.soc_capabilities:
+            soc_kwargs.update(with_usb_host=True)
+        if "ps_ddr" in board.soc_capabilities:
+            soc_kwargs.update(with_ps_ddr=True)
+
+        # SoC creation -----------------------------------------------------------------------------
+        soc = SoCLinux(board.soc_cls, **soc_kwargs)
+        board.platform = soc.platform
+
+        # SoC constants ----------------------------------------------------------------------------
+        for k, v in board.soc_constants.items():
+            soc.add_constant(k, v)
+
+        # SoC peripherals --------------------------------------------------------------------------
+        if board_name in ["arty", "arty_a7"]:
+            from litex_boards.platforms.digilent_arty import _sdcard_pmod_io
+            board.platform.add_extension(_sdcard_pmod_io)
+
+        if board_name in ["colorlight_i5"]:
+            from litex_boards.platforms.colorlight_i5 import _sdcard_pmod_io
+            board.platform.add_extension(_sdcard_pmod_io)
+
+        if board_name in ["aesku40"]:
+            from litex_boards.platforms.avnet_aesku40 import _sdcard_pmod_io
+            board.platform.add_extension(_sdcard_pmod_io)
+
+        if board_name in ["colognechip_gatemate_evb"]:
+            from litex_boards.platforms.colognechip_gatemate_evb import pmods_sdcard_io
+            board.platform.add_extension(pmods_sdcard_io("PMODA"))
+
+        if board_name in ["orange_crab"]:
+            from litex_boards.platforms.gsd_orangecrab import feather_i2c
+            board.platform.add_extension(feather_i2c)
+
+        if "spisdcard" in board.soc_capabilities:
+            soc.add_spi_sdcard()
+        if "sdcard" in board.soc_capabilities:
+            soc.add_sdcard()
+        #if "leds" in board.soc_capabilities:
+        #    soc.add_leds()
+        if "rgb_led" in board.soc_capabilities:
+            soc.add_rgb_led()
+        if "switches" in board.soc_capabilities:
+            soc.add_switches()
+        if "spi" in board.soc_capabilities:
+            soc.add_spi(args.spi_data_width, args.spi_clk_freq)
+        if "i2c" in board.soc_capabilities:
+            soc.add_i2c()
+
+        # Build ------------------------------------------------------------------------------------
+        build_kwargs = {
+            "run"        : args.build,
+            "build_name" : board_name,
+        }
+
+        # Agilex uses quartus_syn/quartus_pfg instead of quartus_map/quartus_cpf
+        if board_name in ["atum_a3_nano"]:
+            build_kwargs.update({
+                "synth_tool" : "quartus_syn",
+                "conv_tool"  : "quartus_pfg",
+            })
+
+        build_dir = os.path.join("build", board_name)
+        builder   = Builder(soc,
+            output_dir   = os.path.join("build", board_name),
+            bios_console = "lite",
+            csr_json     = os.path.join(build_dir, "csr.json"),
+            csr_csv      = os.path.join(build_dir, "csr.csv")
+        )
+        builder.build(**build_kwargs)
+
+        # Buildroot defconfig ----------------------------------------------------------------------
+        buildroot_defconfig_file = os.path.join(build_dir, "buildroot_defconfig")
+        buildroot_base_defconfig = generate_buildroot_defconfig(
+            buildroot_defconfig_file,
+            with_usb_host = "usb_host" in board.soc_capabilities,
+            with_aes      = VexRiscvSMP.aes_instruction,
+            with_fpu      = VexRiscvSMP.with_fpu,
+            with_nfs_root = args.rootfs == "nfs",
+        )
+        print(f"Buildroot defconfig: {buildroot_defconfig_file}")
+        print(f"Buildroot base defconfig: {buildroot_base_defconfig}")
+
+        # DTS --------------------------------------------------------------------------------------
+        soc.generate_dts(
+            board_name,
+            args.rootfs,
+            nfs_server  = args.remote_ip,
+            nfs_root    = args.nfs_root,
+            nfs_options = args.nfs_options,
+        )
+        if hasattr(soc, "get_fdtoverlays"):
+            fdtoverlays = soc.get_fdtoverlays(board_name, args.fdtoverlays)
+        else:
+            fdtoverlays = args.fdtoverlays
+        soc.compile_dts(board_name, fdtoverlays)
+
+        # DTB --------------------------------------------------------------------------------------
+        soc.combine_dtb(board_name, fdtoverlays)
+
+        # boot.json --------------------------------------------------------------------------------
+        shutil.copyfile(f"images/boot_{args.rootfs}.json", "images/boot.json")
+
+        # PCIe Driver ------------------------------------------------------------------------------
+        if "pcie" in board.soc_capabilities:
+            from litepcie.software import generate_litepcie_software
+            generate_litepcie_software(soc, os.path.join(builder.output_dir, "driver"))
+
+        # Load FPGA bitstream ----------------------------------------------------------------------
+        if args.load:
+            board.load(filename=builder.get_bitstream_filename(mode="sram"))
+
+        # Flash bitstream/images (to SPI Flash) ----------------------------------------------------
+        if args.flash:
+            board.flash(filename=builder.get_bitstream_filename(mode="flash"))
+
+        # Generate SoC documentation ---------------------------------------------------------------
+        if args.doc:
+            soc.generate_doc(board_name)
+
+if __name__ == "__main__":
+    main()
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./patch_lolv_i2c_oled_branch_setup.sh
+////////////////////////////////////////////////////////////////
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+# patch_lolv_i2c_oled_branch_setup.sh
+#
+# Branch-local lolv setup for:
+#   ext_i2cs_1p3in_GME12864_70
+#
+# Adds:
+#   - cat_src.sh aggregate for lolv/
+#   - i2c_oled_readme.md
+#   - tools/setup_i2cs_oled_repos.sh
+#   - tools/probe_i2c0_oled.sh
+#   - tools/make_oled_test_image.py
+#   - tools/run_luma_oled_test.py
+#
+# Does not patch soc_linux.py yet. This first step uses the already-proven
+# Linux i2c0 / /dev/i2c-0 path and pre-existing OLED libraries staged under
+# ../i2cs.
+#
+# Run from:
+#   ~/1tb/see/1-c0d3/vhdl/lolv
+
+cd "$(dirname "$0")"
+
+mkdir -p tools reports
+
+cat > cat_src.sh <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+
+# cat_src.sh
+#
+# Aggregate the lolv/ project into review-friendly text dumps.
+#
+# Run from:
+#   $WORKROOT/lolv
+#
+# Outputs:
+#   reports/cat_lolv_readmes.txt
+#   reports/cat_lolv_modified_scripts.txt
+#   reports/cat_lolv_all.txt
+
+ROOT="$(pwd)"
+OUT_DIR="./reports"
+
+DOCS_OUT="$OUT_DIR/cat_lolv_readmes.txt"
+SCRIPTS_OUT="$OUT_DIR/cat_lolv_modified_scripts.txt"
+ALL_OUT="$OUT_DIR/cat_lolv_all.txt"
+
+mkdir -p "$OUT_DIR"
+
+: > "$DOCS_OUT"
+: > "$SCRIPTS_OUT"
+: > "$ALL_OUT"
+
+write_header() {
+    local out_file="$1"
+    local title="$2"
+
+    {
+        echo "================================================================"
+        echo "$title"
+        echo "ROOT: $ROOT"
+        echo "GENERATED: $(date -Is)"
+        echo "================================================================"
+        echo
+    } >> "$out_file"
+}
+
+append_file_hash() {
+    local out_file="$1"
+    local file_path="$2"
+
+    {
+        echo
+        echo "################################################################"
+        echo "# FILE: $file_path"
+        echo "################################################################"
+        echo
+        cat "$file_path"
+        echo
+    } >> "$out_file"
+}
+
+append_file_slash() {
+    local out_file="$1"
+    local file_path="$2"
+
+    {
+        echo
+        echo "////////////////////////////////////////////////////////////////"
+        echo "// FILE: $file_path"
+        echo "////////////////////////////////////////////////////////////////"
+        echo
+        cat "$file_path"
+        echo
+    } >> "$out_file"
+}
+
+write_header "$DOCS_OUT" "LOLV README / DOCS"
+write_header "$SCRIPTS_OUT" "LOLV MODIFIED SCRIPTS / GATEWARE / CONFIGS"
+
+echo "== collecting lolv README/docs =="
+
+find . \
+  -path './.git' -prune -o \
+  -path './build' -prune -o \
+  -path './images' -prune -o \
+  -path './__pycache__' -prune -o \
+  -path './reports/cat_*' -prune -o \
+  -type f \( -name '*.md' -o -name '*.txt' \) -print \
+| sort \
+| while read -r doc_file; do
+    append_file_hash "$DOCS_OUT" "$doc_file"
+done
+
+echo "wrote $DOCS_OUT"
+
+echo
+echo "== collecting lolv modified scripts/gateware/configs =="
+
+{
+  find . \
+    -path './.git' -prune -o \
+    -path './build' -prune -o \
+    -path './images' -prune -o \
+    -path './__pycache__' -prune -o \
+    -path './reports' -prune -o \
+    -type f \( \
+      -name '*.py' -o \
+      -name '*.sh' -o \
+      -name '*.vhd' -o \
+      -name '*.vhdl' -o \
+      -name '*.v' -o \
+      -name '*.dts' -o \
+      -name '*.dtsi' -o \
+      -name '*.json' -o \
+      -name '*.config' -o \
+      -name '*defconfig' -o \
+      -name 'Config.in' -o \
+      -name '*.mk' \
+    \) -print
+} \
+| sort \
+| while read -r src_file; do
+    append_file_slash "$SCRIPTS_OUT" "$src_file"
+done
+
+echo "wrote $SCRIPTS_OUT"
+
+echo
+echo "== writing combined lolv aggregate =="
+
+{
+    echo "================================================================"
+    echo "LOLV COMPLETE AGGREGATE"
+    echo "ROOT: $ROOT"
+    echo "GENERATED: $(date -Is)"
+    echo "================================================================"
+    echo
+    echo "Included sections:"
+    echo "  1. README/docs"
+    echo "  2. Modified scripts/gateware/configs"
+    echo
+    echo "Generated component files:"
+    echo "  $DOCS_OUT"
+    echo "  $SCRIPTS_OUT"
+    echo
+    echo
+    echo "################################################################"
+    echo "# SECTION 1: README / DOCS"
+    echo "################################################################"
+    echo
+    cat "$DOCS_OUT"
+    echo
+    echo
+    echo "################################################################"
+    echo "# SECTION 2: MODIFIED SCRIPTS / GATEWARE / CONFIGS"
+    echo "################################################################"
+    echo
+    cat "$SCRIPTS_OUT"
+    echo
+} >> "$ALL_OUT"
+
+echo "wrote $ALL_OUT"
+
+echo
+echo "DONE."
+echo "Docs/readmes aggregate: $DOCS_OUT"
+echo "Modified scripts aggregate: $SCRIPTS_OUT"
+echo "Combined aggregate: $ALL_OUT"
+SH
+chmod +x cat_src.sh
+
+python - <<'PY'
+from pathlib import Path
+
+readme = r'''
+# I2C OLED branch notes: `ext_i2cs_1p3in_GME12864_70`
+
+This branch is for proving a 1.3 inch 128x64 I2C OLED display on the OrangeCrab Linux-on-LiteX system.
+
+The initial target display is named:
+
+@@@text
+GME12864-70
+1.3 inch
+128x64
+I2C OLED
+@@@
+
+The likely controller family is SH1106 or SSD1306-compatible. Do not assume the controller until the board is probed. Try SH1106 first for the 1.3 inch 128x64 module, then SSD1306 if the first driver does not display correctly.
+
+The goal of this branch is intentionally not a new FPGA I2C controller yet. The current LiteX Linux build already exposes I2C from Linux, so the first proof should use the existing Linux I2C path:
+
+@@@text
+LiteX i2c0 CSR
+Linux /dev/i2c-0
+userspace OLED library
+test image
+@@@
+
+External I2C/OLED library checkouts live outside `lolv/`:
+
+@@@text
+$WORKROOT/i2cs
+@@@
+
+That keeps `lolv/` mergeable and keeps third-party display/library repos out of this repo.
+
+## Working directory variables
+
+@@@bash
+export EXTERNAL="$HOME/1tb/ext"
+export WORKROOT="$HOME/1tb/see/1-c0d3/vhdl"
+export WORKDIR="$WORKROOT/lolv"
+export I2CSDIR="$WORKROOT/i2cs"
+
+cd "$WORKDIR"
+source "$EXTERNAL/fpga-env.sh"
+hash -r
+@@@
+
+## Branch
+
+This branch should be independent of the spin/SLU branch:
+
+@@@bash
+cd "$WORKDIR"
+git switch -c ext_i2cs_1p3in_GME12864_70 2>/dev/null || git switch ext_i2cs_1p3in_GME12864_70
+@@@
+
+## Local source capture
+
+Generate review aggregates before and after patches:
+
+@@@bash
+cd "$WORKDIR"
+./cat_src.sh
+
+ls -lh reports/cat_lolv_readmes.txt
+ls -lh reports/cat_lolv_modified_scripts.txt
+ls -lh reports/cat_lolv_all.txt
+@@@
+
+## Fetch external OLED libraries into `../i2cs`
+
+Run:
+
+@@@bash
+cd "$WORKDIR"
+./tools/setup_i2cs_oled_repos.sh
+@@@
+
+This creates:
+
+@@@text
+$WORKROOT/i2cs/luma.core
+$WORKROOT/i2cs/luma.oled
+$WORKROOT/i2cs/luma.examples
+$WORKROOT/i2cs/README.md
+@@@
+
+The first display test uses `luma.oled` because it already supports common SSD1306/SH1106 OLED modules through Linux I2C.
+
+## Create a test image
+
+Run on the host:
+
+@@@bash
+cd "$WORKDIR"
+python3 ./tools/make_oled_test_image.py
+
+ls -lh reports/oled_test_128x64.pbm
+ls -lh reports/oled_test_128x64.xbm
+@@@
+
+The generated test pattern is intentionally simple:
+
+@@@text
+128x64
+border
+diagonal lines
+filled corner blocks
+text-like stripe region
+@@@
+
+The PBM/XBM files are useful even before `Pillow` is available.
+
+## Probe I2C from OrangeCrab Linux
+
+Boot the OrangeCrab Linux image and run on the target:
+
+@@@bash
+ls -l /dev/i2c-* || true
+ls -l /sys/class/i2c-dev || true
+
+i2cdetect -y 0
+@@@
+
+Expected OLED addresses are usually:
+
+@@@text
+0x3c
+0x3d
+@@@
+
+If `i2cdetect` is missing but `/dev/i2c-0` exists, the kernel path may still be valid. Add `i2c-tools` later for easier interactive debug.
+
+The branch provides a helper script:
+
+@@@bash
+cd "$WORKDIR"
+./tools/probe_i2c0_oled.sh
+@@@
+
+On the target, copy the script over or paste its commands.
+
+## Run the luma OLED test
+
+The intended route is to use the existing Linux I2C device and a userspace OLED library.
+
+On a target/rootfs that has Python, Pillow, and luma installed or vendored:
+
+@@@bash
+cd "$WORKDIR"
+
+python3 ./tools/run_luma_oled_test.py \
+  --port 0 \
+  --address 0x3c \
+  --device sh1106
+@@@
+
+If the screen does not look right, try SSD1306:
+
+@@@bash
+python3 ./tools/run_luma_oled_test.py \
+  --port 0 \
+  --address 0x3c \
+  --device ssd1306
+@@@
+
+If the address is `0x3d`, switch `--address 0x3d`.
+
+## Host-side library path option
+
+When running from a normal Linux environment with the external repos checked out, this script tries to add these paths automatically:
+
+@@@text
+$WORKROOT/i2cs/luma.core
+$WORKROOT/i2cs/luma.oled
+@@@
+
+For manual testing:
+
+@@@bash
+export I2CSDIR="$WORKROOT/i2cs"
+export PYTHONPATH="$I2CSDIR/luma.core:$I2CSDIR/luma.oled:$PYTHONPATH"
+python3 ./tools/run_luma_oled_test.py --port 0 --address 0x3c --device sh1106
+@@@
+
+## Buildroot/rootfs follow-up
+
+If the target Linux rootfs lacks the needed userspace packages, add them in a later patch after the raw I2C probe is confirmed.
+
+Likely package needs:
+
+@@@text
+i2c-tools
+python3
+python3-pillow or a lightweight framebuffer/image path
+luma.core / luma.oled vendored or installed
+@@@
+
+Do not rebuild Buildroot until the board-level I2C wiring and OLED address are known.
+
+## Hardware wiring notes
+
+Use the OrangeCrab header pins that are already wired to LiteX `i2c0`. Do not reassign those pads in this branch unless the existing I2C path is proven broken.
+
+Typical OLED pins:
+
+@@@text
+VCC
+GND
+SCL
+SDA
+@@@
+
+Confirm the display module voltage. Many modules accept 3.3V logic, but do not assume 5V tolerance on FPGA pins.
+
+## Success definition
+
+This branch is successful when:
+
+@@@text
+1. OrangeCrab Linux boots.
+2. /dev/i2c-0 exists.
+3. OLED address appears on i2cdetect, usually 0x3c or 0x3d.
+4. luma.oled can initialize the controller.
+5. the test image appears on the 128x64 OLED.
+6. cat_src.sh captures the branch docs and scripts into reports/.
+@@@
+
+After this passes, a later branch can decide whether a custom FPGA I2C/OLED controller belongs under `$WORKROOT/i2cs`, `lolv/gateware`, or a dedicated firmware tree.
+'''
+
+Path("i2c_oled_readme.md").write_text(readme.replace("@@@", "`" * 3))
+print("wrote i2c_oled_readme.md")
+PY
+
+python - <<'PY'
+from pathlib import Path
+
+readme_add = r'''
+## I2C OLED branch
+
+The `ext_i2cs_1p3in_GME12864_70` branch proves a 1.3 inch 128x64 I2C OLED from Linux first, using the existing LiteX `i2c0` / `/dev/i2c-0` path.
+
+External display libraries and experiments live outside this repo:
+
+@@@text
+$WORKROOT/i2cs
+@@@
+
+Branch-local notes:
+
+@@@text
+i2c_oled_readme.md
+@@@
+
+Branch-local scripts:
+
+@@@text
+cat_src.sh
+tools/setup_i2cs_oled_repos.sh
+tools/probe_i2c0_oled.sh
+tools/make_oled_test_image.py
+tools/run_luma_oled_test.py
+@@@
+'''
+
+p = Path("README.md")
+if p.exists():
+    s = p.read_text()
+    if "## I2C OLED branch" not in s:
+        s = s.rstrip() + "\n\n" + readme_add.replace("@@@", "`" * 3) + "\n"
+        p.write_text(s)
+        print("updated README.md")
+PY
+
+cat > tools/setup_i2cs_oled_repos.sh <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+
+# setup_i2cs_oled_repos.sh
+#
+# Fetch external I2C/OLED userspace libraries into $WORKROOT/i2cs.
+#
+# Run from:
+#   $WORKROOT/lolv
+
+cd "$(dirname "$0")/.."
+
+export WORKROOT="${WORKROOT:-$(cd .. && pwd)}"
+export I2CSDIR="${I2CSDIR:-$WORKROOT/i2cs}"
+
+mkdir -p "$I2CSDIR"
+
+clone_or_update() {
+    local url="$1"
+    local dir="$2"
+
+    if [[ -d "$dir/.git" ]]; then
+        echo "== updating $dir =="
+        git -C "$dir" fetch --all --tags
+    elif [[ -d "$dir" ]]; then
+        echo "ERROR: $dir exists but is not a git repo" >&2
+        exit 1
+    else
+        echo "== cloning $url -> $dir =="
+        git clone "$url" "$dir"
+    fi
+}
+
+clone_or_update "https://github.com/rm-hull/luma.core.git" "$I2CSDIR/luma.core"
+clone_or_update "https://github.com/rm-hull/luma.oled.git" "$I2CSDIR/luma.oled"
+clone_or_update "https://github.com/rm-hull/luma.examples.git" "$I2CSDIR/luma.examples"
+
+cat > "$I2CSDIR/README.md" <<'MD'
+# i2cs external workspace
+
+This directory is outside `lolv/` on purpose.
+
+It stores third-party I2C/OLED userspace libraries and later custom I2C firmware/controller experiments.
+
+Current OLED branch:
+
+```text
+lolv branch: ext_i2cs_1p3in_GME12864_70
+display: GME12864-70 1.3 inch 128x64 I2C OLED
+likely drivers to try: sh1106 first, ssd1306 second
+likely addresses: 0x3c or 0x3d
+```
+
+Current third-party checkouts:
+
+```text
+luma.core
+luma.oled
+luma.examples
+```
+
+Do not commit these repos into `lolv/`.
+MD
+
+echo
+echo "I2C/OLED repos ready:"
+find "$I2CSDIR" -maxdepth 2 -type d -name .git -print | sort
+echo
+echo "Next:"
+echo "  cd $WORKROOT/lolv"
+echo "  ./tools/probe_i2c0_oled.sh"
+echo "  python3 ./tools/run_luma_oled_test.py --port 0 --address 0x3c --device sh1106"
+SH
+chmod +x tools/setup_i2cs_oled_repos.sh
+
+cat > tools/probe_i2c0_oled.sh <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+
+# probe_i2c0_oled.sh
+#
+# Probe the existing LiteX/Linux i2c0 path for a 128x64 OLED.
+#
+# Run on the OrangeCrab Linux target when possible.
+
+echo "== kernel i2c devices =="
+ls -l /dev/i2c-* 2>/dev/null || true
+ls -l /sys/class/i2c-dev 2>/dev/null || true
+
+echo
+echo "== i2c-dev modules / kernel config hints =="
+grep -E 'i2c|I2C' /proc/devices 2>/dev/null || true
+zcat /proc/config.gz 2>/dev/null | grep -E 'CONFIG_I2C|CONFIG_I2C_CHARDEV' || true
+
+echo
+echo "== i2cdetect =="
+if command -v i2cdetect >/dev/null 2>&1; then
+    i2cdetect -y 0
+else
+    echo "i2cdetect not found."
+    echo "Install/add i2c-tools later, or use Python/library probe once available."
+fi
+
+echo
+echo "Expected OLED addresses:"
+echo "  0x3c"
+echo "  0x3d"
+
+echo
+echo "Next display tests:"
+echo "  python3 ./tools/run_luma_oled_test.py --port 0 --address 0x3c --device sh1106"
+echo "  python3 ./tools/run_luma_oled_test.py --port 0 --address 0x3c --device ssd1306"
+SH
+chmod +x tools/probe_i2c0_oled.sh
+
+cat > tools/make_oled_test_image.py <<'PY'
+#!/usr/bin/env python3
+from pathlib import Path
+
+W = 128
+H = 64
+
+out_dir = Path("reports")
+out_dir.mkdir(exist_ok=True)
+
+pixels = [[0 for _ in range(W)] for _ in range(H)]
+
+for x in range(W):
+    pixels[0][x] = 1
+    pixels[H - 1][x] = 1
+for y in range(H):
+    pixels[y][0] = 1
+    pixels[y][W - 1] = 1
+
+for i in range(min(W // 2, H)):
+    pixels[i][i * 2] = 1
+    pixels[i][W - 1 - (i * 2)] = 1
+
+for y in range(6, 22):
+    for x in range(6, 34):
+        pixels[y][x] = 1
+
+for y in range(42, 58):
+    for x in range(94, 122):
+        pixels[y][x] = 1
+
+for y in range(28, 36):
+    for x in range(12, 116):
+        if (x // 4) % 2 == 0 or y in (28, 35):
+            pixels[y][x] = 1
+
+pbm = out_dir / "oled_test_128x64.pbm"
+with pbm.open("w", encoding="utf-8") as f:
+    f.write("P1\n")
+    f.write(f"{W} {H}\n")
+    for row in pixels:
+        f.write(" ".join(str(v) for v in row))
+        f.write("\n")
+
+xbm = out_dir / "oled_test_128x64.xbm"
+bytes_out = []
+for y in range(H):
+    for xb in range(0, W, 8):
+        b = 0
+        for bit in range(8):
+            if pixels[y][xb + bit]:
+                b |= 1 << bit
+        bytes_out.append(b)
+
+with xbm.open("w", encoding="utf-8") as f:
+    f.write("#define oled_test_128x64_width 128\n")
+    f.write("#define oled_test_128x64_height 64\n")
+    f.write("static unsigned char oled_test_128x64_bits[] = {\n")
+    for i in range(0, len(bytes_out), 12):
+        f.write("  ")
+        f.write(", ".join(f"0x{b:02x}" for b in bytes_out[i:i + 12]))
+        if i + 12 < len(bytes_out):
+            f.write(",")
+        f.write("\n")
+    f.write("};\n")
+
+print(f"wrote {pbm}")
+print(f"wrote {xbm}")
+PY
+chmod +x tools/make_oled_test_image.py
+
+cat > tools/run_luma_oled_test.py <<'PY'
+#!/usr/bin/env python3
+import argparse
+import os
+import sys
+from pathlib import Path
+
+def add_external_luma_paths():
+    workroot = Path(os.environ.get("WORKROOT", Path.cwd().parent)).resolve()
+    i2csdir = Path(os.environ.get("I2CSDIR", workroot / "i2cs")).resolve()
+
+    for rel in ["luma.core", "luma.oled"]:
+        path = i2csdir / rel
+        if path.exists():
+            sys.path.insert(0, str(path))
+
+def parse_int_auto(s: str) -> int:
+    return int(s, 0)
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Draw a 128x64 test image on an I2C OLED using luma.oled.")
+    parser.add_argument("--port", type=int, default=0, help="Linux I2C bus number, e.g. 0 for /dev/i2c-0.")
+    parser.add_argument("--address", type=parse_int_auto, default=0x3C, help="OLED I2C address, e.g. 0x3c or 0x3d.")
+    parser.add_argument("--device", choices=["sh1106", "ssd1306"], default="sh1106", help="OLED controller driver.")
+    parser.add_argument("--rotate", type=int, default=0, choices=[0, 1, 2, 3], help="luma rotate setting.")
+    args = parser.parse_args()
+
+    add_external_luma_paths()
+
+    try:
+        from luma.core.interface.serial import i2c
+        from luma.core.render import canvas
+        from luma.oled.device import sh1106, ssd1306
+    except Exception as e:
+        print("ERROR: could not import luma.oled stack.", file=sys.stderr)
+        print(str(e), file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Run on the host:", file=sys.stderr)
+        print("  ./tools/setup_i2cs_oled_repos.sh", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Then ensure Python can import luma.core/luma.oled and Pillow.", file=sys.stderr)
+        print("On a Buildroot target, this may require adding python3/pillow/luma packages or copying a prepared rootfs.", file=sys.stderr)
+        return 2
+
+    driver = sh1106 if args.device == "sh1106" else ssd1306
+
+    serial = i2c(port=args.port, address=args.address)
+    device = driver(serial, width=128, height=64, rotate=args.rotate)
+
+    with canvas(device) as draw:
+        draw.rectangle(device.bounding_box, outline="white", fill="black")
+        draw.line((0, 0, 127, 63), fill="white")
+        draw.line((0, 63, 127, 0), fill="white")
+        draw.rectangle((5, 5, 35, 20), outline="white", fill="white")
+        draw.rectangle((92, 43, 122, 58), outline="white", fill="white")
+        draw.text((40, 4), "LOLV", fill="white")
+        draw.text((40, 18), "I2C OLED", fill="white")
+        draw.text((40, 32), args.device.upper(), fill="white")
+        draw.text((40, 46), f"0x{args.address:02X}", fill="white")
+
+    print(f"displayed OLED test: device={args.device} port={args.port} address=0x{args.address:02x}")
+    return 0
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+PY
+chmod +x tools/run_luma_oled_test.py
+
+./cat_src.sh
+
+echo
+echo "== i2c oled branch setup installed =="
+echo
+echo "Run:"
+echo "  git status"
+echo "  ./tools/setup_i2cs_oled_repos.sh"
+echo "  python3 ./tools/make_oled_test_image.py"
+echo "  ./cat_src.sh"
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./sim.py
+////////////////////////////////////////////////////////////////
+
+#!/usr/bin/env python3
+
+#
+# This file is part of Linux-on-LiteX-VexRiscv
+#
+# Copyright (c) 2019-2024, Linux-on-LiteX-VexRiscv Developers
+# SPDX-License-Identifier: BSD-2-Clause
+
+import json
+import argparse
+
+from migen import *
+
+from litex.gen import *
+
+from litex.build.generic_platform import *
+from litex.build.sim              import SimPlatform
+from litex.build.sim.config       import SimConfig
+from litex.build.sim.verilator    import verilator_build_args, verilator_build_argdict
+
+from litex.soc.interconnect.csr       import *
+from litex.soc.integration.soc_core   import *
+from litex.soc.integration.builder    import *
+from litex.soc.interconnect           import wishbone
+from litex.soc.cores.cpu.vexriscv_smp import VexRiscvSMP
+
+from litedram import modules as litedram_modules
+from litedram.phy.model       import SDRAMPHYModel, sdram_module_nphases, get_sdram_phy_settings
+from litedram.core.controller import ControllerSettings
+
+from liteeth.phy.model import LiteEthPHYModel
+from liteeth.mac       import LiteEthMAC
+
+from litex.tools.litex_json2dts_linux import generate_dts
+
+# IOs ----------------------------------------------------------------------------------------------
+
+_io = [
+    # Clk / Rst.
+    ("sys_clk", 0, Pins(1)),
+    ("sys_rst", 0, Pins(1)),
+
+    # Serial.
+    ("serial", 0,
+        Subsignal("source_valid", Pins(1)),
+        Subsignal("source_ready", Pins(1)),
+        Subsignal("source_data",  Pins(8)),
+
+        Subsignal("sink_valid", Pins(1)),
+        Subsignal("sink_ready", Pins(1)),
+        Subsignal("sink_data",  Pins(8)),
+    ),
+]
+
+# Platform -----------------------------------------------------------------------------------------
+
+class Platform(SimPlatform):
+    def __init__(self):
+        SimPlatform.__init__(self, "SIM", _io)
+
+# Supervisor ---------------------------------------------------------------------------------------
+
+class Supervisor(LiteXModule):
+    def __init__(self):
+        self._finish = CSR()    # Controlled from CPU.
+        self.finish  = Signal() # Controlled from logic.
+        self.sync += If(self._finish.re | self.finish, Finish())
+
+# SoCLinux -----------------------------------------------------------------------------------------
+
+class SoCLinux(SoCCore):
+    def __init__(self, sys_clk_freq=int(100e6),
+        init_memories    = False,
+        sdram_module     = "MT48LC16M16",
+        sdram_data_width = 32,
+        sdram_verbosity  = 0
+    ):
+        # Platform ---------------------------------------------------------------------------------
+        platform     = Platform()
+        self.comb += platform.trace.eq(1)
+
+        # RAM Init ---------------------------------------------------------------------------------
+        ram_init = []
+        if init_memories:
+            ram_init = get_mem_data("images/boot_ram0.json", endianness="little", offset=0x40000000)
+
+        # CRG --------------------------------------------------------------------------------------
+        self.crg = CRG(platform.request("sys_clk"))
+
+        # SoCCore ----------------------------------------------------------------------------------
+        SoCCore.__init__(self, platform, clk_freq=sys_clk_freq,
+            cpu_type            = "vexriscv_smp",
+            cpu_variant         = "linux",
+            integrated_rom_size = 0x10000,
+            uart_name           = "sim",
+        )
+        self.add_config("DISABLE_DELAYS")
+
+        # Boot from OpenSBI.
+        self.add_constant("ROM_BOOT_ADDRESS", self.bus.regions["opensbi"].origin)
+
+        # Supervisor -------------------------------------------------------------------------------
+        self.supervisor = Supervisor()
+
+        # SDRAM ------------------------------------------------------------------------------------
+        sdram_clk_freq   = int(100e6) # FIXME: use 100MHz timings
+        sdram_module_cls = getattr(litedram_modules, sdram_module)
+        sdram_rate       = "1:{}".format(sdram_module_nphases[sdram_module_cls.memtype])
+        sdram_module     = sdram_module_cls(sdram_clk_freq, sdram_rate)
+        phy_settings     = get_sdram_phy_settings(
+            memtype    = sdram_module.memtype,
+            data_width = sdram_data_width,
+            clk_freq   = sdram_clk_freq,
+        )
+        self.sdrphy = SDRAMPHYModel(
+            module    = sdram_module,
+            settings  = phy_settings,
+            clk_freq  = sdram_clk_freq,
+            verbosity = sdram_verbosity,
+            init      = ram_init,
+        )
+        self.add_sdram("sdram",
+            phy           = self.sdrphy,
+            module        = sdram_module,
+            l2_cache_size = 0,
+        )
+        self.add_constant("SDRAM_TEST_DISABLE") # Skip SDRAM test to avoid corrupting pre-initialized contents.
+
+    def generate_dts(self, board_name):
+        json_src = os.path.join("build", board_name, "csr.json")
+        dts = os.path.join("build", board_name, "{}.dts".format(board_name))
+        initrd = os.path.join("images", "rootfs.cpio.gz")
+        if not os.path.exists(initrd):
+            initrd = "enabled"
+        with open(json_src) as json_file, open(dts, "w") as dts_file:
+            dts_content = generate_dts(json.load(json_file), initrd=initrd)
+            dts_file.write(dts_content)
+
+    def compile_dts(self, board_name):
+        dts = os.path.join("build", board_name, "{}.dts".format(board_name))
+        dtb = os.path.join("images", "rv32.dtb")
+        os.system("dtc -O dtb -o {} {}".format(dtb, dts))
+
+# Build --------------------------------------------------------------------------------------------
+
+def main():
+    parser = argparse.ArgumentParser(description="Linux on LiteX-VexRiscv Simulation.")
+    parser.add_argument("--with-sdram",       action="store_true",   help="Enable SDRAM support.")
+    parser.add_argument("--sdram-module",     default="MT48LC16M16", help="Select SDRAM chip.")
+    parser.add_argument("--sdram-data-width", default=32,            help="Set SDRAM chip data width.")
+    parser.add_argument("--sdram-verbosity",  default=0,             help="Set SDRAM checker verbosity.")
+    VexRiscvSMP.args_fill(parser)
+    verilator_build_args(parser)
+    args = parser.parse_args()
+
+    VexRiscvSMP.args_read(args)
+    verilator_build_kwargs = verilator_build_argdict(args)
+    sim_config = SimConfig(default_clk="sys_clk")
+    sim_config.add_module("serial2console", "serial")
+
+    for i in range(2):
+        prepare = (i == 0)
+        run     = (i == 1)
+        soc = SoCLinux(
+            init_memories    = run,
+            sdram_module     = args.sdram_module,
+            sdram_data_width = int(args.sdram_data_width),
+            sdram_verbosity  = int(args.sdram_verbosity)
+        )
+        board_name = "sim"
+        build_dir  = os.path.join("build", board_name)
+        builder = Builder(soc, output_dir=build_dir,
+            compile_gateware = run,
+            csr_json         = os.path.join(build_dir, "csr.json"))
+        builder.build(sim_config=sim_config, run=run, **verilator_build_kwargs)
+        if prepare:
+            soc.generate_dts(board_name)
+            soc.compile_dts(board_name)
+
+if __name__ == "__main__":
+    main()
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./soc_linux.py
+////////////////////////////////////////////////////////////////
+
+#
+# This file is part of Linux-on-LiteX-VexRiscv
+#
+# Copyright (c) 2019-2024, Linux-on-LiteX-VexRiscv Developers
+# SPDX-License-Identifier: BSD-2-Clause
+
+import os
+import json
+import shutil
+import subprocess
+
+from migen import *
+
+from litex.soc.interconnect.csr import *
+from litex.build.generic_platform import Pins, IOStandard, Misc
+
+from litex.soc.cores.cpu.vexriscv_smp import VexRiscvSMP
+from litex.soc.cores.gpio    import GPIOOut, GPIOIn
+from litex.soc.cores.spi     import SPIMaster
+from litex.soc.cores.bitbang import I2CMaster
+from litex.soc.cores.pwm     import PWM
+
+from litex.tools.litex_json2dts_linux import generate_dts
+
+
+
+
+# Header Probe VHDL CSR wrapper --------------------------------------------------------------------
+
+class HeaderProbe(Module, AutoCSR):
+    def __init__(self, platform, pads):
+        self.enable  = CSRStorage(1,  reset=0,     description="Enable header probe output drivers.")
+        self.oe      = CSRStorage(12, reset=0x000, description="Output-enable mask for header probe pins.")
+        self.out     = CSRStorage(12, reset=0x000, description="Output value mask for header probe pins.")
+        self.pins_in = CSRStatus(12,              description="Live sampled value of header probe pins.")
+
+        pins_in = Signal(12)
+
+        platform.add_source("gateware/header_probe.v")
+
+        self.specials += Instance("header_probe",
+            i_clk       = ClockSignal("sys"),
+            i_rst       = ResetSignal("sys"),
+
+            i_enable    = self.enable.storage,
+            i_oe        = self.oe.storage,
+            i_out_value = self.out.storage,
+            o_in_value  = pins_in,
+
+            io_gpio     = pads,
+        )
+
+        self.comb += self.pins_in.status.eq(pins_in)
+
+
+# SoCLinux -----------------------------------------------------------------------------------------
+
+def SoCLinux(soc_cls, **kwargs):
+    class _SoCLinux(soc_cls):
+        def __init__(self, **kwargs):
+
+            video_framebuffer_fifo_depth = kwargs.pop("video_framebuffer_fifo_depth", None)
+            if isinstance(video_framebuffer_fifo_depth, str):
+                video_framebuffer_fifo_depth = int(video_framebuffer_fifo_depth, 0)
+            self.video_framebuffer_fifo_depth = video_framebuffer_fifo_depth
+
+            # SoC ----------------------------------------------------------------------------------
+
+            soc_cls.__init__(self, cpu_type="vexriscv_smp", cpu_variant="linux", **kwargs)
+
+            # Header Probe -------------------------------------------------------------------------
+            #
+            # Real CSR-backed VHDL IP block for probing the OrangeCrab 0.1 inch GPIO holes from Linux.
+            # This replaces the fake/manual DT-only gpio@f0004800 experiment.
+            #
+            # Bit mapping:
+            #   bit 0  -> GPIO:1
+            #   bit 1  -> GPIO:5
+            #   bit 2  -> GPIO:6
+            #   bit 3  -> GPIO:9
+            #   bit 4  -> GPIO:10
+            #   bit 5  -> GPIO:11
+            #   bit 6  -> GPIO:12
+            #   bit 7  -> GPIO:13
+            #   bit 8  -> GPIO:18
+            #   bit 9  -> GPIO:19
+            #   bit 10 -> GPIO:20
+            #   bit 11 -> GPIO:21
+            #
+            # GPIO:2/GPIO:3 are left alone because this SoC already has i2c0.
+            self.platform.add_extension([
+                ("header_probe_pads", 0,
+                    Pins("GPIO:1 GPIO:5 GPIO:6 GPIO:9 GPIO:10 GPIO:11 GPIO:12 GPIO:13 GPIO:18 GPIO:19 GPIO:20 GPIO:21"),
+                    IOStandard("LVCMOS33"),
+                    Misc("PULLMODE=DOWN")
+                )
+            ])
+            self.submodules.header_probe = HeaderProbe(
+                platform = self.platform,
+                pads     = self.platform.request("header_probe_pads", 0),
+            )
+            # Keep header_probe away from CSR bank 0.
+            # Linux's litex_soc_ctrl driver expects the SoC controller/scratch CSR at 0xf0000000.
+            # Bank 9 gives header_probe base 0xf0004800 with the default 0x800 CSR paging.
+            self.csr.add("header_probe", n=9)
+
+            # Header GPIO pins on the OrangeCrab 0.1" holes.
+            #
+            # Bit mapping:
+            #   bit 0  -> GPIO:1
+            #   bit 1  -> GPIO:5
+            #   bit 2  -> GPIO:6
+            #   bit 3  -> GPIO:9
+            #   bit 4  -> GPIO:10
+            #   bit 5  -> GPIO:11
+            #   bit 6  -> GPIO:12
+            #   bit 7  -> GPIO:13
+            #   bit 8  -> GPIO:18
+            #   bit 9  -> GPIO:19
+            #   bit 10 -> GPIO:20
+            #   bit 11 -> GPIO:21
+            #
+            # GPIO:2/GPIO:3 are left alone because this SoC already has i2c0.
+            # GPIO:0/GPIO:14/GPIO:15/GPIO:16 are left alone for possible SPI-style use.
+
+
+        # RGB Led ----------------------------------------------------------------------------------
+
+        def add_rgb_led(self):
+            rgb_led_pads = self.platform.request("rgb_led", 0)
+            for n in "rgb":
+                self.add_module(name=f"rgb_led_{n}0", module=PWM(getattr(rgb_led_pads, n)))
+
+        # Switches ---------------------------------------------------------------------------------
+
+        def add_switches(self):
+            self.switches = GPIOIn(Cat(self.platform.request_all("user_sw")), with_irq=True)
+            self.irq.add("switches")
+
+        # SPI --------------------------------------------------------------------------------------
+
+        def add_spi(self, data_width, clk_freq):
+            spi_pads = self.platform.request("spi")
+            self.spi = SPIMaster(spi_pads, data_width, self.clk_freq, clk_freq)
+
+        # I2C --------------------------------------------------------------------------------------
+
+        def add_i2c(self):
+            self.i2c0 = I2CMaster(self.platform.request("i2c", 0))
+
+        # Video ------------------------------------------------------------------------------------
+
+        def add_video_framebuffer(self, *args, **kwargs):
+            if self.video_framebuffer_fifo_depth is not None and len(args) < 6 and "fifo_depth" not in kwargs:
+                kwargs["fifo_depth"] = self.video_framebuffer_fifo_depth
+            return soc_cls.add_video_framebuffer(self, *args, **kwargs)
+
+        # DTS generation ---------------------------------------------------------------------------
+
+        def generate_dts(
+            self,
+            board_name,
+            rootfs      = "ram0",
+            nfs_server  = None,
+            nfs_root    = None,
+            nfs_options = None,
+        ):
+            json_src = os.path.join("build", board_name, "csr.json")
+            dts = os.path.join("build", board_name, "{}.dts".format(board_name))
+            if rootfs == "ram0":
+                initrd = os.path.join("images", "rootfs.cpio.gz")
+                if not os.path.exists(initrd):
+                    initrd = "enabled"
+            else:
+                initrd = "disabled"
+
+            with open(json_src) as json_file, open(dts, "w") as dts_file:
+                dts_content = generate_dts(json.load(json_file),
+                    initrd      = initrd,
+                    polling     = False,
+                    root_device = rootfs
+                )
+                if rootfs == "nfs":
+                    if nfs_server is None or nfs_root is None:
+                        raise ValueError("nfs_server and nfs_root are required for NFS rootfs")
+                    nfsroot = f"{nfs_server}:{nfs_root}"
+                    if nfs_options:
+                        nfsroot += f",{nfs_options}"
+                    dts_content = dts_content.replace(
+                        "rootwait root=/dev/nfs",
+                        f"root=/dev/nfs nfsroot={nfsroot}",
+                    )
+                dts_file.write(dts_content)
+
+        # DTS compilation --------------------------------------------------------------------------
+
+        def compile_dts(self, board_name, symbols=False):
+            dts = os.path.join("build", board_name, "{}.dts".format(board_name))
+            dtb = os.path.join("build", board_name, "{}.dtb".format(board_name))
+            subprocess.check_call(
+                "dtc {} -O dtb -o {} {}".format("-@" if symbols else "", dtb, dts), shell=True)
+
+        # DTB combination --------------------------------------------------------------------------
+
+        def combine_dtb(self, board_name, overlays=""):
+            dtb_in = os.path.join("build", board_name, "{}.dtb".format(board_name))
+            dtb_out = os.path.join("images", "rv32.dtb")
+            if overlays == "":
+                shutil.copyfile(dtb_in, dtb_out)
+            else:
+                subprocess.check_call(
+                    "fdtoverlay -i {} -o {} {}".format(dtb_in, dtb_out, overlays), shell=True)
+
+        # Documentation generation -----------------------------------------------------------------
+        def generate_doc(self, board_name):
+            from litex.soc.doc import generate_docs
+            doc_dir = os.path.join("build", board_name, "doc")
+            generate_docs(self, doc_dir)
+            os.system("sphinx-build -M html {}/ {}/_build".format(doc_dir, doc_dir))
+
+    return _SoCLinux(**kwargs)
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./test/__init__.py
+////////////////////////////////////////////////////////////////
+
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./test/test_build.py
+////////////////////////////////////////////////////////////////
+
+#
+# This file is part of Linux-on-LiteX-VexRiscv
+#
+# Copyright (c) 2019-2024, Linux-on-LiteX-VexRiscv Developers
+# SPDX-License-Identifier: BSD-2-Clause
+
+import os
+import shutil
+import tempfile
+import unittest
+import subprocess
+
+from make import (
+    generate_buildroot_defconfig,
+    get_buildroot_base_defconfig,
+    get_buildroot_config_overrides,
+    supported_boards,
+)
+
+class TestBuild(unittest.TestCase):
+    def board_build_test(
+        self, board, cpu_count=1, extra_args=None,
+        expected_base=None, expected_overrides=None):
+        extra_args = extra_args or []
+
+        # Build Board software/gateware.
+        shutil.rmtree("build", ignore_errors=True)
+        subprocess.run(
+            [
+                "./make.py",
+                f"--board={board}",
+                f"--cpu-count={cpu_count}",
+                *extra_args,
+            ],
+            check=True,
+        )
+
+        # Check .csv/.json generation.
+        self.assertEqual(os.path.isfile(f"build/{board}/csr.csv"),  True)
+        self.assertEqual(os.path.isfile(f"build/{board}/csr.json"), True)
+
+        # Check Software generation.
+        self.assertEqual(os.path.isfile(f"build/{board}/{board}.dts"), True)
+        self.assertEqual(os.path.isfile(f"build/{board}/software/include/generated/csr.h"), True)
+        self.assertEqual(os.path.isfile(f"build/{board}/software/bios/bios.bin"),           True)
+
+        # Check Gateware generation
+        self.assertEqual(os.path.isfile(f"build/{board}/gateware/{board}.v"), True)
+
+        # Check Buildroot defconfig selection.
+        self.assertEqual(os.path.isfile(f"build/{board}/buildroot_defconfig"), True)
+        with open(f"build/{board}/buildroot_defconfig", encoding="utf-8") as f:
+            generated_defconfig = f.read()
+        if expected_base is not None:
+            base_filename = f"buildroot/configs/{expected_base}"
+            with open(base_filename, encoding="utf-8") as f:
+                base_defconfig = f.read().rstrip()
+            if not expected_overrides:
+                self.assertEqual(generated_defconfig, base_defconfig + "\n")
+        for override in expected_overrides or []:
+            self.assertIn(override, generated_defconfig)
+
+    def test_buildroot_defconfigs(self):
+        configs = [
+            (False, False, False, False, "litex_vexriscv_defconfig"),
+            (False, True,  False, False, "litex_vexriscv_defconfig"),
+            (False, False, True,  False, "litex_vexriscv_defconfig"),
+            (False, True,  True,  False, "litex_vexriscv_defconfig"),
+            (True,  False, False, False, "litex_vexriscv_defconfig"),
+            (True,  True,  False, False, "litex_vexriscv_defconfig"),
+            (True,  False, True,  False, "litex_vexriscv_defconfig"),
+            (True,  True,  True,  False, "litex_vexriscv_defconfig"),
+            (False, False, False, True,  "litex_vexriscv_defconfig"),
+            (False, True,  False, True,  "litex_vexriscv_defconfig"),
+            (False, False, True,  True,  "litex_vexriscv_defconfig"),
+            (False, True,  True,  True,  "litex_vexriscv_defconfig"),
+            (True,  False, False, True,  "litex_vexriscv_defconfig"),
+            (True,  True,  False, True,  "litex_vexriscv_defconfig"),
+            (True,  False, True,  True,  "litex_vexriscv_defconfig"),
+            (True,  True,  True,  True,  "litex_vexriscv_defconfig"),
+        ]
+        for with_usb_host, with_aes, with_fpu, with_nfs_root, expected_base in configs:
+            with self.subTest(
+                base          = expected_base,
+                with_usb_host = with_usb_host,
+                with_aes      = with_aes,
+                with_fpu      = with_fpu,
+                with_nfs_root = with_nfs_root,
+            ):
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    generated = os.path.join(tmpdir, "buildroot_defconfig")
+                    base = generate_buildroot_defconfig(
+                        filename      = generated,
+                        with_usb_host = with_usb_host,
+                        with_aes      = with_aes,
+                        with_fpu      = with_fpu,
+                        with_nfs_root = with_nfs_root,
+                    )
+                    self.assertEqual(base, expected_base)
+                    self.assertEqual(get_buildroot_base_defconfig(), expected_base)
+
+                    with open(f"buildroot/configs/{expected_base}", encoding="utf-8") as f:
+                        base_defconfig = f.read().rstrip()
+                    with open(generated, encoding="utf-8") as f:
+                        generated_defconfig = f.read()
+                    if not with_usb_host and not with_aes and not with_fpu and not with_nfs_root:
+                        self.assertEqual(generated_defconfig, base_defconfig + "\n")
+                    for override in get_buildroot_config_overrides(
+                        with_usb_host = with_usb_host,
+                        with_aes      = with_aes,
+                        with_fpu      = with_fpu,
+                        with_nfs_root = with_nfs_root,
+                    ):
+                        self.assertIn(override, generated_defconfig)
+                    if with_fpu:
+                        self.assertNotIn("\nBR2_RISCV_ABI_ILP32=y\n", "\n" + generated_defconfig)
+                    if not with_aes:
+                        self.assertNotIn("\nBR2_PACKAGE_VEXRISCV_AES=y\n", "\n" + generated_defconfig)
+                    if with_nfs_root:
+                        self.assertIn("linux-nfsroot.config", generated_defconfig)
+                        self.assertIn("\nBR2_TARGET_ROOTFS_TAR=y\n", "\n" + generated_defconfig)
+                    if not with_fpu and not with_nfs_root:
+                        self.assertNotIn("BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES", generated_defconfig)
+
+    def test_boards(self):
+        excluded_boards = [
+            "schoko",                   # USB OHCI netlist generation issue.
+            "trion_t120bga576dev_kit",  # Reason: Require Efinity toolchain.
+            "titanium_ti60f225dev_kit", # Reason: Require Efinity toolchain.
+        ]
+        # Allow CI matrix jobs to target a single board via $LLV_BOARD.
+        single = os.environ.get("LLV_BOARD")
+        if single:
+            boards = [single]
+        else:
+            boards = [b for b in supported_boards if b not in excluded_boards]
+        for board in boards:
+            with self.subTest(msg=f"board={board} build test..."):
+                board_info = supported_boards[board]()
+                with_usb_host = "usb_host" in board_info.soc_capabilities
+                expected_overrides = get_buildroot_config_overrides(
+                    with_usb_host = with_usb_host,
+                )
+                self.board_build_test(
+                    board              = board,
+                    expected_base      = get_buildroot_base_defconfig(),
+                    expected_overrides = expected_overrides,
+                )
+
+    def test_cpu_count(self):
+        for cpu_count in [1, 2, 4]:
+            with self.subTest(msg=f"cpu_count={cpu_count} build test..."):
+                self.board_build_test(
+                    board         = "arty",
+                    cpu_count     = cpu_count,
+                    expected_base = "litex_vexriscv_defconfig",
+                )
+
+    def test_cpu_variants(self):
+        with self.subTest(msg="AES/FPU build test..."):
+            self.board_build_test(
+                board="arty",
+                cpu_count=1,
+                extra_args=[
+                    "--aes-instruction=True",
+                    "--with-fpu",
+                    "--cpu-per-fpu=1",
+                ],
+                expected_base      = "litex_vexriscv_defconfig",
+                expected_overrides = get_buildroot_config_overrides(
+                    with_aes = True,
+                    with_fpu = True,
+                ),
+            )
+
+    def test_nfs_rootfs(self):
+        self.board_build_test(
+            board="arty",
+            cpu_count=1,
+            extra_args=[
+                "--rootfs=nfs",
+                "--nfs-root=/srv/nfs/litex",
+            ],
+            expected_base      = "litex_vexriscv_defconfig",
+            expected_overrides = get_buildroot_config_overrides(with_nfs_root=True),
+        )
+
+        with open("build/arty/arty.dts", encoding="utf-8") as f:
+            dts = f.read()
+        self.assertIn("root=/dev/nfs", dts)
+        self.assertIn(
+            "nfsroot=192.168.1.100:/srv/nfs/litex,vers=3,tcp,nolock",
+            dts,
+        )
+        self.assertNotIn("linux,initrd-start", dts)
+
+        with open("images/boot.json", encoding="utf-8") as f:
+            boot = f.read()
+        self.assertNotIn("rootfs.cpio", boot)
+
+    def test_nfs_rootfs_requires_ethernet(self):
+        result = subprocess.run(
+            [
+                "./make.py",
+                "--board=arty_s7",
+                "--rootfs=nfs",
+            ],
+            check=False,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("does not support Ethernet", result.stderr)
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./tools/make_oled_test_image.py
+////////////////////////////////////////////////////////////////
+
+#!/usr/bin/env python3
+from pathlib import Path
+
+W = 128
+H = 64
+
+out_dir = Path("reports")
+out_dir.mkdir(exist_ok=True)
+
+pixels = [[0 for _ in range(W)] for _ in range(H)]
+
+for x in range(W):
+    pixels[0][x] = 1
+    pixels[H - 1][x] = 1
+for y in range(H):
+    pixels[y][0] = 1
+    pixels[y][W - 1] = 1
+
+for i in range(min(W // 2, H)):
+    pixels[i][i * 2] = 1
+    pixels[i][W - 1 - (i * 2)] = 1
+
+for y in range(6, 22):
+    for x in range(6, 34):
+        pixels[y][x] = 1
+
+for y in range(42, 58):
+    for x in range(94, 122):
+        pixels[y][x] = 1
+
+for y in range(28, 36):
+    for x in range(12, 116):
+        if (x // 4) % 2 == 0 or y in (28, 35):
+            pixels[y][x] = 1
+
+pbm = out_dir / "oled_test_128x64.pbm"
+with pbm.open("w", encoding="utf-8") as f:
+    f.write("P1\n")
+    f.write(f"{W} {H}\n")
+    for row in pixels:
+        f.write(" ".join(str(v) for v in row))
+        f.write("\n")
+
+xbm = out_dir / "oled_test_128x64.xbm"
+bytes_out = []
+for y in range(H):
+    for xb in range(0, W, 8):
+        b = 0
+        for bit in range(8):
+            if pixels[y][xb + bit]:
+                b |= 1 << bit
+        bytes_out.append(b)
+
+with xbm.open("w", encoding="utf-8") as f:
+    f.write("#define oled_test_128x64_width 128\n")
+    f.write("#define oled_test_128x64_height 64\n")
+    f.write("static unsigned char oled_test_128x64_bits[] = {\n")
+    for i in range(0, len(bytes_out), 12):
+        f.write("  ")
+        f.write(", ".join(f"0x{b:02x}" for b in bytes_out[i:i + 12]))
+        if i + 12 < len(bytes_out):
+            f.write(",")
+        f.write("\n")
+    f.write("};\n")
+
+print(f"wrote {pbm}")
+print(f"wrote {xbm}")
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./tools/normalize_md_external_paths.py
+////////////////////////////////////////////////////////////////
+
+#!/usr/bin/env python3
+from pathlib import Path
+import sys
+
+ROOT = Path.cwd()
+write = "--write" in sys.argv
+
+SKIP_DIRS = {
+    ".git",
+    "build",
+    "target",
+    ".venv",
+    "node_modules",
+}
+
+REPLACEMENTS = [
+    ("~/1tb/ext", "$EXTERNAL"),
+    ("$HOME/1tb/ext", "$EXTERNAL"),
+    ("/home/seejn/1tb/ext", "$EXTERNAL"),
+
+    ("~/1tb/see/1-c0d3/vhdl/lolv", "$WORKDIR"),
+    ("$HOME/1tb/see/1-c0d3/vhdl/lolv", "$WORKDIR"),
+    ("/home/seejn/1tb/see/1-c0d3/vhdl/lolv", "$WORKDIR"),
+
+    ("~/1tb/see/1-c0d3/vhdl", "$WORKROOT"),
+    ("$HOME/1tb/see/1-c0d3/vhdl", "$WORKROOT"),
+    ("/home/seejn/1tb/see/1-c0d3/vhdl", "$WORKROOT"),
+
+    ("~/1tb", "$EXTERNAL"),
+    ("$HOME/1tb", "$EXTERNAL"),
+    ("/home/seejn/1tb", "$EXTERNAL"),
+]
+
+changed = []
+
+for p in sorted(ROOT.rglob("*.md")):
+    if any(part in SKIP_DIRS for part in p.parts):
+        continue
+
+    old = p.read_text(errors="replace")
+    new = old
+
+    for src, dst in REPLACEMENTS:
+        new = new.replace(src, dst)
+
+    if new != old:
+        changed.append(p)
+        print(f"{'WRITE' if write else 'DRY'} {p}")
+        for src, dst in REPLACEMENTS:
+            count = old.count(src)
+            if count:
+                print(f"  {count:4d} x {src} -> {dst}")
+
+        if write:
+            p.write_text(new)
+
+if not changed:
+    print("No markdown path changes found.")
+elif not write:
+    print()
+    print("Dry run only. Re-run with --write:")
+    print("  python tools/normalize_md_external_paths.py --write")
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./tools/normalize_md_workdir_paths.py
+////////////////////////////////////////////////////////////////
+
+#!/usr/bin/env python3
+from pathlib import Path
+import sys
+
+ROOT = Path.cwd()
+
+REPLACEMENTS = [
+    ("~/1tb/see/1-c0d3/vhdl/lolv", "$WORKDIR"),
+    ("/home/seejn/1tb/see/1-c0d3/vhdl/lolv", "$WORKDIR"),
+    ("~/1tb/see/1-c0d3/vhdl/", "$WORKROOT/"),
+    ("/home/seejn/1tb/see/1-c0d3/vhdl/", "$WORKROOT/"),
+]
+
+SKIP_DIRS = {
+    ".git",
+    "build",
+    "target",
+    ".venv",
+    "node_modules",
+}
+
+write = "--write" in sys.argv
+
+md_files = []
+for p in ROOT.rglob("*.md"):
+    if any(part in SKIP_DIRS for part in p.parts):
+        continue
+    md_files.append(p)
+
+changed = []
+
+for p in sorted(md_files):
+    old = p.read_text(errors="replace")
+    new = old
+    for a, b in REPLACEMENTS:
+        new = new.replace(a, b)
+
+    if new != old:
+        changed.append(p)
+        print(f"{'WRITE' if write else 'DRY'} {p}")
+        for a, b in REPLACEMENTS:
+            count = old.count(a)
+            if count:
+                print(f"  {count:4d} x {a} -> {b}")
+        if write:
+            p.write_text(new)
+
+if not changed:
+    print("No markdown path changes found.")
+elif not write:
+    print()
+    print("Dry run only. Re-run with --write to modify files:")
+    print("  python tools/normalize_md_workdir_paths.py --write")
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./tools/probe_i2c0_oled.sh
+////////////////////////////////////////////////////////////////
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+# probe_i2c0_oled.sh
+#
+# Probe the existing LiteX/Linux i2c0 path for a 128x64 OLED.
+#
+# Run on the OrangeCrab Linux target when possible.
+
+echo "== kernel i2c devices =="
+ls -l /dev/i2c-* 2>/dev/null || true
+ls -l /sys/class/i2c-dev 2>/dev/null || true
+
+echo
+echo "== i2c-dev modules / kernel config hints =="
+grep -E 'i2c|I2C' /proc/devices 2>/dev/null || true
+zcat /proc/config.gz 2>/dev/null | grep -E 'CONFIG_I2C|CONFIG_I2C_CHARDEV' || true
+
+echo
+echo "== i2cdetect =="
+if command -v i2cdetect >/dev/null 2>&1; then
+    i2cdetect -y 0
+else
+    echo "i2cdetect not found."
+    echo "Install/add i2c-tools later, or use Python/library probe once available."
+fi
+
+echo
+echo "Expected OLED addresses:"
+echo "  0x3c"
+echo "  0x3d"
+
+echo
+echo "Next display tests:"
+echo "  python3 ./tools/run_luma_oled_test.py --port 0 --address 0x3c --device sh1106"
+echo "  python3 ./tools/run_luma_oled_test.py --port 0 --address 0x3c --device ssd1306"
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./tools/run_luma_oled_test.py
+////////////////////////////////////////////////////////////////
+
+#!/usr/bin/env python3
+import argparse
+import os
+import sys
+from pathlib import Path
+
+def add_external_luma_paths():
+    workroot = Path(os.environ.get("WORKROOT", Path.cwd().parent)).resolve()
+    i2csdir = Path(os.environ.get("I2CSDIR", workroot / "i2cs")).resolve()
+
+    for rel in ["luma.core", "luma.oled"]:
+        path = i2csdir / rel
+        if path.exists():
+            sys.path.insert(0, str(path))
+
+def parse_int_auto(s: str) -> int:
+    return int(s, 0)
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Draw a 128x64 test image on an I2C OLED using luma.oled.")
+    parser.add_argument("--port", type=int, default=0, help="Linux I2C bus number, e.g. 0 for /dev/i2c-0.")
+    parser.add_argument("--address", type=parse_int_auto, default=0x3C, help="OLED I2C address, e.g. 0x3c or 0x3d.")
+    parser.add_argument("--device", choices=["sh1106", "ssd1306"], default="sh1106", help="OLED controller driver.")
+    parser.add_argument("--rotate", type=int, default=0, choices=[0, 1, 2, 3], help="luma rotate setting.")
+    args = parser.parse_args()
+
+    add_external_luma_paths()
+
+    try:
+        from luma.core.interface.serial import i2c
+        from luma.core.render import canvas
+        from luma.oled.device import sh1106, ssd1306
+    except Exception as e:
+        print("ERROR: could not import luma.oled stack.", file=sys.stderr)
+        print(str(e), file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Run on the host:", file=sys.stderr)
+        print("  ./tools/setup_i2cs_oled_repos.sh", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Then ensure Python can import luma.core/luma.oled and Pillow.", file=sys.stderr)
+        print("On a Buildroot target, this may require adding python3/pillow/luma packages or copying a prepared rootfs.", file=sys.stderr)
+        return 2
+
+    driver = sh1106 if args.device == "sh1106" else ssd1306
+
+    serial = i2c(port=args.port, address=args.address)
+    device = driver(serial, width=128, height=64, rotate=args.rotate)
+
+    with canvas(device) as draw:
+        draw.rectangle(device.bounding_box, outline="white", fill="black")
+        draw.line((0, 0, 127, 63), fill="white")
+        draw.line((0, 63, 127, 0), fill="white")
+        draw.rectangle((5, 5, 35, 20), outline="white", fill="white")
+        draw.rectangle((92, 43, 122, 58), outline="white", fill="white")
+        draw.text((40, 4), "LOLV", fill="white")
+        draw.text((40, 18), "I2C OLED", fill="white")
+        draw.text((40, 32), args.device.upper(), fill="white")
+        draw.text((40, 46), f"0x{args.address:02X}", fill="white")
+
+    print(f"displayed OLED test: device={args.device} port={args.port} address=0x{args.address:02x}")
+    return 0
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./tools/setup_i2cs_oled_repos.sh
+////////////////////////////////////////////////////////////////
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+# setup_i2cs_oled_repos.sh
+#
+# Fetch external I2C/OLED userspace libraries into $WORKROOT/i2cs.
+#
+# Run from:
+#   $WORKROOT/lolv
+
+cd "$(dirname "$0")/.."
+
+export WORKROOT="${WORKROOT:-$(cd .. && pwd)}"
+export I2CSDIR="${I2CSDIR:-$WORKROOT/i2cs}"
+
+mkdir -p "$I2CSDIR"
+
+clone_or_update() {
+    local url="$1"
+    local dir="$2"
+
+    if [[ -d "$dir/.git" ]]; then
+        echo "== updating $dir =="
+        git -C "$dir" fetch --all --tags
+    elif [[ -d "$dir" ]]; then
+        echo "ERROR: $dir exists but is not a git repo" >&2
+        exit 1
+    else
+        echo "== cloning $url -> $dir =="
+        git clone "$url" "$dir"
+    fi
+}
+
+clone_or_update "https://github.com/rm-hull/luma.core.git" "$I2CSDIR/luma.core"
+clone_or_update "https://github.com/rm-hull/luma.oled.git" "$I2CSDIR/luma.oled"
+clone_or_update "https://github.com/rm-hull/luma.examples.git" "$I2CSDIR/luma.examples"
+
+cat > "$I2CSDIR/README.md" <<'MD'
+# i2cs external workspace
+
+This directory is outside `lolv/` on purpose.
+
+It stores third-party I2C/OLED userspace libraries and later custom I2C firmware/controller experiments.
+
+Current OLED branch:
+
+```text
+lolv branch: ext_i2cs_1p3in_GME12864_70
+display: GME12864-70 1.3 inch 128x64 I2C OLED
+likely drivers to try: sh1106 first, ssd1306 second
+likely addresses: 0x3c or 0x3d
+```
+
+Current third-party checkouts:
+
+```text
+luma.core
+luma.oled
+luma.examples
+```
+
+Do not commit these repos into `lolv/`.
+MD
+
+echo
+echo "I2C/OLED repos ready:"
+find "$I2CSDIR" -maxdepth 2 -type d -name .git -print | sort
+echo
+echo "Next:"
+echo "  cd $WORKROOT/lolv"
+echo "  ./tools/probe_i2c0_oled.sh"
+echo "  python3 ./tools/run_luma_oled_test.py --port 0 --address 0x3c --device sh1106"
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./tools/synth_header_probe_vhdl.sh
+////////////////////////////////////////////////////////////////
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+mkdir -p gateware
+
+if ! command -v yosys-ghdl >/dev/null 2>&1; then
+  echo "ERROR: yosys-ghdl wrapper not found in PATH." >&2
+  echo "Run:" >&2
+  echo "  source ~/1tb/ext/fpga-env.sh" >&2
+  echo "  hash -r" >&2
+  echo "  which yosys-ghdl" >&2
+  exit 1
+fi
+
+echo "using yosys-ghdl: $(command -v yosys-ghdl)"
+yosys-ghdl -p 'help ghdl' >/tmp/header_probe_yosys_ghdl_help.log
+
+echo "synthesizing gateware/header_probe.vhd -> gateware/header_probe.v"
+yosys-ghdl -p '
+  ghdl --std=08 gateware/header_probe.vhd -e header_probe
+  write_verilog -noattr gateware/header_probe.v
+'
+
+echo
+echo "generated gateware/header_probe.v:"
+grep -nE 'module header_probe|inout|out_value|in_value|gpio|assign' gateware/header_probe.v | head -120
+
