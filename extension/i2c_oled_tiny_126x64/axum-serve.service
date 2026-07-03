@@ -1,0 +1,12 @@
+[Unit]
+Description=axum_serve OLED network appliance
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/axum_serve --i2c-bus /dev/i2c-0 --i2c-addr 0x3c --bind 0.0.0.0:80 --static-dir /usr/local/share/axum-serve-static
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
