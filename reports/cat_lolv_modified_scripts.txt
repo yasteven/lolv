@@ -1,7 +1,7 @@
 ================================================================
 LOLV MODIFIED SCRIPTS / GATEWARE / CONFIGS
-ROOT: /home/seejn/1tb/see/1-c0d3/vhdl/lolv
-GENERATED: 2026-07-03T00:51:46-07:00
+ROOT: /mnt/storage/see/1-c0d3/vhdl/lolv
+GENERATED: 2026-07-03T01:35:21-07:00
 ================================================================
 
 
@@ -1644,6 +1644,113 @@ echo "Combined aggregate: $ALL_OUT"
 
 
 ////////////////////////////////////////////////////////////////
+// FILE: ./extension/i2c_oled_tiny_126x64/build.sh
+////////////////////////////////////////////////////////////////
+
+#!/bin/sh
+# Cross-compile axum_serve (which pulls in tiny_128x64) for the OrangeCrab.
+#
+# Run from this directory (extension/i2c_oled_tiny_126x64/).
+set -eu
+
+# --- adjust to match your board -------------------------------------------
+TARGET="${TARGET:-riscv64gc-unknown-linux-musl}"
+PROFILE="${PROFILE:-release}"
+# ----------------------------------------------------------------------------
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+OLED_DIR="$HERE/../../../../rust/oled"
+
+if [ ! -d "$OLED_DIR/axum_serve" ]; then
+  echo "error: expected $OLED_DIR/axum_serve to exist." >&2
+  echo "This script assumes the repo layout: 1-c0d3/rust/oled/{tiny_128x64,axum_serve}" >&2
+  echo "alongside 1-c0d3/vhdl/lolv/extension/i2c_oled_tiny_126x64/." >&2
+  exit 1
+fi
+
+cd "$OLED_DIR"
+
+if command -v cross >/dev/null 2>&1; then
+  echo "Building with cross for target $TARGET ($PROFILE)..."
+  cross build --profile "$PROFILE" --target "$TARGET" -p axum_serve
+else
+  echo "cross not found -- falling back to plain cargo (requires the target"
+  echo "and a suitable linker already installed: rustup target add $TARGET)."
+  cargo build --profile "$PROFILE" --target "$TARGET" -p axum_serve
+fi
+
+BIN="$OLED_DIR/target/$TARGET/$PROFILE/axum_serve"
+if [ -f "$BIN" ]; then
+  echo "Built: $BIN"
+else
+  echo "warning: expected binary not found at $BIN -- check the profile name" >&2
+  echo "(cargo uses 'debug' for the default dev profile, not 'dev')." >&2
+fi
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./extension/i2c_oled_tiny_126x64/deploy.sh
+////////////////////////////////////////////////////////////////
+
+#!/bin/sh
+# Ship the cross-compiled axum_serve binary + static/ to the OrangeCrab and
+# (re)start it. Run from this directory (extension/i2c_oled_tiny_126x64/)
+# after build.sh.
+set -eu
+
+TARGET="${TARGET:-riscv64gc-unknown-linux-musl}"
+PROFILE="${PROFILE:-release}"
+ORANGECRAB_HOST="${ORANGECRAB_HOST:?set ORANGECRAB_HOST, e.g. ORANGECRAB_HOST=192.168.7.2 ./deploy.sh}"
+ORANGECRAB_USER="${ORANGECRAB_USER:-root}"
+REMOTE_BIN_DIR="${REMOTE_BIN_DIR:-/usr/local/bin}"
+REMOTE_STATIC_DIR="${REMOTE_STATIC_DIR:-/usr/local/share/axum-serve-static}"
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+OLED_DIR="$HERE/../../../../rust/oled"
+BIN="$OLED_DIR/target/$TARGET/$PROFILE/axum_serve"
+STATIC_DIR="$OLED_DIR/axum_serve/static"
+
+if [ ! -f "$BIN" ]; then
+  echo "error: $BIN not found -- run build.sh first." >&2
+  exit 1
+fi
+
+echo "Copying binary to $ORANGECRAB_USER@$ORANGECRAB_HOST:$REMOTE_BIN_DIR/axum_serve"
+scp "$BIN" "$ORANGECRAB_USER@$ORANGECRAB_HOST:$REMOTE_BIN_DIR/axum_serve"
+
+echo "Copying static/ to $ORANGECRAB_USER@$ORANGECRAB_HOST:$REMOTE_STATIC_DIR"
+ssh "$ORANGECRAB_USER@$ORANGECRAB_HOST" "mkdir -p '$REMOTE_STATIC_DIR'"
+scp -r "$STATIC_DIR"/. "$ORANGECRAB_USER@$ORANGECRAB_HOST:$REMOTE_STATIC_DIR/"
+
+echo "Restarting service (if systemd unit is installed)..."
+ssh "$ORANGECRAB_USER@$ORANGECRAB_HOST" \
+  "systemctl restart axum-serve 2>/dev/null || echo 'no axum-serve systemd unit yet -- run it manually:'; \
+   echo \"$REMOTE_BIN_DIR/axum_serve --i2c-bus /dev/i2c-0 --i2c-addr 0x3c --bind 0.0.0.0:80 --static-dir $REMOTE_STATIC_DIR\""
+
+echo "Done. Open http://$ORANGECRAB_HOST/ in a browser."
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./extension/i2c_oled_tiny_126x64/run-dev.sh
+////////////////////////////////////////////////////////////////
+
+#!/bin/sh
+# Run axum_serve on your dev machine, headless if there's no OLED here.
+# Handy for iterating on the frontend/API without the OrangeCrab attached.
+set -eu
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+OLED_DIR="$HERE/../../../../rust/oled"
+
+cd "$OLED_DIR"
+cargo run -p axum_serve -- \
+  --bind "${BIND:-127.0.0.1:8080}" \
+  --i2c-bus "${I2C_BUS:-/dev/i2c-0}" \
+  --i2c-addr "${I2C_ADDR:-0x3c}" \
+  --static-dir "$OLED_DIR/axum_serve/static"
+
+
+////////////////////////////////////////////////////////////////
 // FILE: ./gateware/header_probe.v
 ////////////////////////////////////////////////////////////////
 
@@ -1746,6 +1853,55 @@ begin
     in_value(i) <= gpio(i);
   end generate;
 end architecture rtl;
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./install.sh
+////////////////////////////////////////////////////////////////
+
+#!/bin/sh
+# Run this from vhdl/lolv/ (your lolv checkout root) right after unzipping
+# this archive there.
+#
+# It relocates rust/oled/{tiny_128x64,axum_serve} up to 1-c0d3/rust/oled/
+# (two levels above lolv/, i.e. alongside vhdl/) and leaves
+# extension/i2c_oled_tiny_126x64/ in place at lolv/extension/, which is
+# where it belongs.
+set -eu
+
+HERE="$(pwd)"
+DEST="$HERE/../../rust/oled"
+
+if [ ! -d "$HERE/rust/oled" ]; then
+  echo "error: expected ./rust/oled here -- did you unzip in lolv/?" >&2
+  exit 1
+fi
+
+mkdir -p "$DEST"
+
+for crate in tiny_128x64 axum_serve; do
+  if [ -d "$DEST/$crate" ]; then
+    echo "warning: $DEST/$crate already exists -- leaving it alone." >&2
+    echo "  (delete it first if you want this archive's copy instead)" >&2
+    continue
+  fi
+  cp -r "$HERE/rust/oled/$crate" "$DEST/"
+  echo "installed rust/oled/$crate -> $DEST/$crate"
+done
+
+# Bring the workspace Cargo.toml along too, if the destination doesn't have
+# one yet (so `cargo build` from rust/oled/ builds both crates at once).
+if [ -f "$HERE/rust/oled/Cargo.toml" ] && [ ! -f "$DEST/Cargo.toml" ]; then
+  cp "$HERE/rust/oled/Cargo.toml" "$DEST/Cargo.toml"
+  echo "installed rust/oled/Cargo.toml -> $DEST/Cargo.toml"
+fi
+
+rm -rf "$HERE/rust"
+
+echo
+echo "Done."
+echo "  Rust crates now live at: $(cd "$DEST" && pwd)"
+echo "  Build/deploy scripts live at: $HERE/extension/i2c_oled_tiny_126x64/"
 
 
 ////////////////////////////////////////////////////////////////
@@ -2169,749 +2325,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./patch_lolv_i2c_oled_branch_setup.sh
-////////////////////////////////////////////////////////////////
-
-#!/usr/bin/env bash
-set -euo pipefail
-
-# patch_lolv_i2c_oled_branch_setup.sh
-#
-# Branch-local lolv setup for:
-#   ext_i2cs_1p3in_GME12864_70
-#
-# Adds:
-#   - cat_src.sh aggregate for lolv/
-#   - i2c_oled_readme.md
-#   - tools/setup_i2cs_oled_repos.sh
-#   - tools/probe_i2c0_oled.sh
-#   - tools/make_oled_test_image.py
-#   - tools/run_luma_oled_test.py
-#
-# Does not patch soc_linux.py yet. This first step uses the already-proven
-# Linux i2c0 / /dev/i2c-0 path and pre-existing OLED libraries staged under
-# ../i2cs.
-#
-# Run from:
-#   ~/1tb/see/1-c0d3/vhdl/lolv
-
-cd "$(dirname "$0")"
-
-mkdir -p tools reports
-
-cat > cat_src.sh <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-
-# cat_src.sh
-#
-# Aggregate the lolv/ project into review-friendly text dumps.
-#
-# Run from:
-#   $WORKROOT/lolv
-#
-# Outputs:
-#   reports/cat_lolv_readmes.txt
-#   reports/cat_lolv_modified_scripts.txt
-#   reports/cat_lolv_all.txt
-
-ROOT="$(pwd)"
-OUT_DIR="./reports"
-
-DOCS_OUT="$OUT_DIR/cat_lolv_readmes.txt"
-SCRIPTS_OUT="$OUT_DIR/cat_lolv_modified_scripts.txt"
-ALL_OUT="$OUT_DIR/cat_lolv_all.txt"
-
-mkdir -p "$OUT_DIR"
-
-: > "$DOCS_OUT"
-: > "$SCRIPTS_OUT"
-: > "$ALL_OUT"
-
-write_header() {
-    local out_file="$1"
-    local title="$2"
-
-    {
-        echo "================================================================"
-        echo "$title"
-        echo "ROOT: $ROOT"
-        echo "GENERATED: $(date -Is)"
-        echo "================================================================"
-        echo
-    } >> "$out_file"
-}
-
-append_file_hash() {
-    local out_file="$1"
-    local file_path="$2"
-
-    {
-        echo
-        echo "################################################################"
-        echo "# FILE: $file_path"
-        echo "################################################################"
-        echo
-        cat "$file_path"
-        echo
-    } >> "$out_file"
-}
-
-append_file_slash() {
-    local out_file="$1"
-    local file_path="$2"
-
-    {
-        echo
-        echo "////////////////////////////////////////////////////////////////"
-        echo "// FILE: $file_path"
-        echo "////////////////////////////////////////////////////////////////"
-        echo
-        cat "$file_path"
-        echo
-    } >> "$out_file"
-}
-
-write_header "$DOCS_OUT" "LOLV README / DOCS"
-write_header "$SCRIPTS_OUT" "LOLV MODIFIED SCRIPTS / GATEWARE / CONFIGS"
-
-echo "== collecting lolv README/docs =="
-
-find . \
-  -path './.git' -prune -o \
-  -path './build' -prune -o \
-  -path './images' -prune -o \
-  -path './__pycache__' -prune -o \
-  -path './reports/cat_*' -prune -o \
-  -type f \( -name '*.md' -o -name '*.txt' \) -print \
-| sort \
-| while read -r doc_file; do
-    append_file_hash "$DOCS_OUT" "$doc_file"
-done
-
-echo "wrote $DOCS_OUT"
-
-echo
-echo "== collecting lolv modified scripts/gateware/configs =="
-
-{
-  find . \
-    -path './.git' -prune -o \
-    -path './build' -prune -o \
-    -path './images' -prune -o \
-    -path './__pycache__' -prune -o \
-    -path './reports' -prune -o \
-    -type f \( \
-      -name '*.py' -o \
-      -name '*.sh' -o \
-      -name '*.vhd' -o \
-      -name '*.vhdl' -o \
-      -name '*.v' -o \
-      -name '*.dts' -o \
-      -name '*.dtsi' -o \
-      -name '*.json' -o \
-      -name '*.config' -o \
-      -name '*defconfig' -o \
-      -name 'Config.in' -o \
-      -name '*.mk' \
-    \) -print
-} \
-| sort \
-| while read -r src_file; do
-    append_file_slash "$SCRIPTS_OUT" "$src_file"
-done
-
-echo "wrote $SCRIPTS_OUT"
-
-echo
-echo "== writing combined lolv aggregate =="
-
-{
-    echo "================================================================"
-    echo "LOLV COMPLETE AGGREGATE"
-    echo "ROOT: $ROOT"
-    echo "GENERATED: $(date -Is)"
-    echo "================================================================"
-    echo
-    echo "Included sections:"
-    echo "  1. README/docs"
-    echo "  2. Modified scripts/gateware/configs"
-    echo
-    echo "Generated component files:"
-    echo "  $DOCS_OUT"
-    echo "  $SCRIPTS_OUT"
-    echo
-    echo
-    echo "################################################################"
-    echo "# SECTION 1: README / DOCS"
-    echo "################################################################"
-    echo
-    cat "$DOCS_OUT"
-    echo
-    echo
-    echo "################################################################"
-    echo "# SECTION 2: MODIFIED SCRIPTS / GATEWARE / CONFIGS"
-    echo "################################################################"
-    echo
-    cat "$SCRIPTS_OUT"
-    echo
-} >> "$ALL_OUT"
-
-echo "wrote $ALL_OUT"
-
-echo
-echo "DONE."
-echo "Docs/readmes aggregate: $DOCS_OUT"
-echo "Modified scripts aggregate: $SCRIPTS_OUT"
-echo "Combined aggregate: $ALL_OUT"
-SH
-chmod +x cat_src.sh
-
-python - <<'PY'
-from pathlib import Path
-
-readme = r'''
-# I2C OLED branch notes: `ext_i2cs_1p3in_GME12864_70`
-
-This branch is for proving a 1.3 inch 128x64 I2C OLED display on the OrangeCrab Linux-on-LiteX system.
-
-The initial target display is named:
-
-@@@text
-GME12864-70
-1.3 inch
-128x64
-I2C OLED
-@@@
-
-The likely controller family is SH1106 or SSD1306-compatible. Do not assume the controller until the board is probed. Try SH1106 first for the 1.3 inch 128x64 module, then SSD1306 if the first driver does not display correctly.
-
-The goal of this branch is intentionally not a new FPGA I2C controller yet. The current LiteX Linux build already exposes I2C from Linux, so the first proof should use the existing Linux I2C path:
-
-@@@text
-LiteX i2c0 CSR
-Linux /dev/i2c-0
-userspace OLED library
-test image
-@@@
-
-External I2C/OLED library checkouts live outside `lolv/`:
-
-@@@text
-$WORKROOT/i2cs
-@@@
-
-That keeps `lolv/` mergeable and keeps third-party display/library repos out of this repo.
-
-## Working directory variables
-
-@@@bash
-export EXTERNAL="$HOME/1tb/ext"
-export WORKROOT="$HOME/1tb/see/1-c0d3/vhdl"
-export WORKDIR="$WORKROOT/lolv"
-export I2CSDIR="$WORKROOT/i2cs"
-
-cd "$WORKDIR"
-source "$EXTERNAL/fpga-env.sh"
-hash -r
-@@@
-
-## Branch
-
-This branch should be independent of the spin/SLU branch:
-
-@@@bash
-cd "$WORKDIR"
-git switch -c ext_i2cs_1p3in_GME12864_70 2>/dev/null || git switch ext_i2cs_1p3in_GME12864_70
-@@@
-
-## Local source capture
-
-Generate review aggregates before and after patches:
-
-@@@bash
-cd "$WORKDIR"
-./cat_src.sh
-
-ls -lh reports/cat_lolv_readmes.txt
-ls -lh reports/cat_lolv_modified_scripts.txt
-ls -lh reports/cat_lolv_all.txt
-@@@
-
-## Fetch external OLED libraries into `../i2cs`
-
-Run:
-
-@@@bash
-cd "$WORKDIR"
-./tools/setup_i2cs_oled_repos.sh
-@@@
-
-This creates:
-
-@@@text
-$WORKROOT/i2cs/luma.core
-$WORKROOT/i2cs/luma.oled
-$WORKROOT/i2cs/luma.examples
-$WORKROOT/i2cs/README.md
-@@@
-
-The first display test uses `luma.oled` because it already supports common SSD1306/SH1106 OLED modules through Linux I2C.
-
-## Create a test image
-
-Run on the host:
-
-@@@bash
-cd "$WORKDIR"
-python3 ./tools/make_oled_test_image.py
-
-ls -lh reports/oled_test_128x64.pbm
-ls -lh reports/oled_test_128x64.xbm
-@@@
-
-The generated test pattern is intentionally simple:
-
-@@@text
-128x64
-border
-diagonal lines
-filled corner blocks
-text-like stripe region
-@@@
-
-The PBM/XBM files are useful even before `Pillow` is available.
-
-## Probe I2C from OrangeCrab Linux
-
-Boot the OrangeCrab Linux image and run on the target:
-
-@@@bash
-ls -l /dev/i2c-* || true
-ls -l /sys/class/i2c-dev || true
-
-i2cdetect -y 0
-@@@
-
-Expected OLED addresses are usually:
-
-@@@text
-0x3c
-0x3d
-@@@
-
-If `i2cdetect` is missing but `/dev/i2c-0` exists, the kernel path may still be valid. Add `i2c-tools` later for easier interactive debug.
-
-The branch provides a helper script:
-
-@@@bash
-cd "$WORKDIR"
-./tools/probe_i2c0_oled.sh
-@@@
-
-On the target, copy the script over or paste its commands.
-
-## Run the luma OLED test
-
-The intended route is to use the existing Linux I2C device and a userspace OLED library.
-
-On a target/rootfs that has Python, Pillow, and luma installed or vendored:
-
-@@@bash
-cd "$WORKDIR"
-
-python3 ./tools/run_luma_oled_test.py \
-  --port 0 \
-  --address 0x3c \
-  --device sh1106
-@@@
-
-If the screen does not look right, try SSD1306:
-
-@@@bash
-python3 ./tools/run_luma_oled_test.py \
-  --port 0 \
-  --address 0x3c \
-  --device ssd1306
-@@@
-
-If the address is `0x3d`, switch `--address 0x3d`.
-
-## Host-side library path option
-
-When running from a normal Linux environment with the external repos checked out, this script tries to add these paths automatically:
-
-@@@text
-$WORKROOT/i2cs/luma.core
-$WORKROOT/i2cs/luma.oled
-@@@
-
-For manual testing:
-
-@@@bash
-export I2CSDIR="$WORKROOT/i2cs"
-export PYTHONPATH="$I2CSDIR/luma.core:$I2CSDIR/luma.oled:$PYTHONPATH"
-python3 ./tools/run_luma_oled_test.py --port 0 --address 0x3c --device sh1106
-@@@
-
-## Buildroot/rootfs follow-up
-
-If the target Linux rootfs lacks the needed userspace packages, add them in a later patch after the raw I2C probe is confirmed.
-
-Likely package needs:
-
-@@@text
-i2c-tools
-python3
-python3-pillow or a lightweight framebuffer/image path
-luma.core / luma.oled vendored or installed
-@@@
-
-Do not rebuild Buildroot until the board-level I2C wiring and OLED address are known.
-
-## Hardware wiring notes
-
-Use the OrangeCrab header pins that are already wired to LiteX `i2c0`. Do not reassign those pads in this branch unless the existing I2C path is proven broken.
-
-Typical OLED pins:
-
-@@@text
-VCC
-GND
-SCL
-SDA
-@@@
-
-Confirm the display module voltage. Many modules accept 3.3V logic, but do not assume 5V tolerance on FPGA pins.
-
-## Success definition
-
-This branch is successful when:
-
-@@@text
-1. OrangeCrab Linux boots.
-2. /dev/i2c-0 exists.
-3. OLED address appears on i2cdetect, usually 0x3c or 0x3d.
-4. luma.oled can initialize the controller.
-5. the test image appears on the 128x64 OLED.
-6. cat_src.sh captures the branch docs and scripts into reports/.
-@@@
-
-After this passes, a later branch can decide whether a custom FPGA I2C/OLED controller belongs under `$WORKROOT/i2cs`, `lolv/gateware`, or a dedicated firmware tree.
-'''
-
-Path("i2c_oled_readme.md").write_text(readme.replace("@@@", "`" * 3))
-print("wrote i2c_oled_readme.md")
-PY
-
-python - <<'PY'
-from pathlib import Path
-
-readme_add = r'''
-## I2C OLED branch
-
-The `ext_i2cs_1p3in_GME12864_70` branch proves a 1.3 inch 128x64 I2C OLED from Linux first, using the existing LiteX `i2c0` / `/dev/i2c-0` path.
-
-External display libraries and experiments live outside this repo:
-
-@@@text
-$WORKROOT/i2cs
-@@@
-
-Branch-local notes:
-
-@@@text
-i2c_oled_readme.md
-@@@
-
-Branch-local scripts:
-
-@@@text
-cat_src.sh
-tools/setup_i2cs_oled_repos.sh
-tools/probe_i2c0_oled.sh
-tools/make_oled_test_image.py
-tools/run_luma_oled_test.py
-@@@
-'''
-
-p = Path("README.md")
-if p.exists():
-    s = p.read_text()
-    if "## I2C OLED branch" not in s:
-        s = s.rstrip() + "\n\n" + readme_add.replace("@@@", "`" * 3) + "\n"
-        p.write_text(s)
-        print("updated README.md")
-PY
-
-cat > tools/setup_i2cs_oled_repos.sh <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-
-# setup_i2cs_oled_repos.sh
-#
-# Fetch external I2C/OLED userspace libraries into $WORKROOT/i2cs.
-#
-# Run from:
-#   $WORKROOT/lolv
-
-cd "$(dirname "$0")/.."
-
-export WORKROOT="${WORKROOT:-$(cd .. && pwd)}"
-export I2CSDIR="${I2CSDIR:-$WORKROOT/i2cs}"
-
-mkdir -p "$I2CSDIR"
-
-clone_or_update() {
-    local url="$1"
-    local dir="$2"
-
-    if [[ -d "$dir/.git" ]]; then
-        echo "== updating $dir =="
-        git -C "$dir" fetch --all --tags
-    elif [[ -d "$dir" ]]; then
-        echo "ERROR: $dir exists but is not a git repo" >&2
-        exit 1
-    else
-        echo "== cloning $url -> $dir =="
-        git clone "$url" "$dir"
-    fi
-}
-
-clone_or_update "https://github.com/rm-hull/luma.core.git" "$I2CSDIR/luma.core"
-clone_or_update "https://github.com/rm-hull/luma.oled.git" "$I2CSDIR/luma.oled"
-clone_or_update "https://github.com/rm-hull/luma.examples.git" "$I2CSDIR/luma.examples"
-
-cat > "$I2CSDIR/README.md" <<'MD'
-# i2cs external workspace
-
-This directory is outside `lolv/` on purpose.
-
-It stores third-party I2C/OLED userspace libraries and later custom I2C firmware/controller experiments.
-
-Current OLED branch:
-
-```text
-lolv branch: ext_i2cs_1p3in_GME12864_70
-display: GME12864-70 1.3 inch 128x64 I2C OLED
-likely drivers to try: sh1106 first, ssd1306 second
-likely addresses: 0x3c or 0x3d
-```
-
-Current third-party checkouts:
-
-```text
-luma.core
-luma.oled
-luma.examples
-```
-
-Do not commit these repos into `lolv/`.
-MD
-
-echo
-echo "I2C/OLED repos ready:"
-find "$I2CSDIR" -maxdepth 2 -type d -name .git -print | sort
-echo
-echo "Next:"
-echo "  cd $WORKROOT/lolv"
-echo "  ./tools/probe_i2c0_oled.sh"
-echo "  python3 ./tools/run_luma_oled_test.py --port 0 --address 0x3c --device sh1106"
-SH
-chmod +x tools/setup_i2cs_oled_repos.sh
-
-cat > tools/probe_i2c0_oled.sh <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-
-# probe_i2c0_oled.sh
-#
-# Probe the existing LiteX/Linux i2c0 path for a 128x64 OLED.
-#
-# Run on the OrangeCrab Linux target when possible.
-
-echo "== kernel i2c devices =="
-ls -l /dev/i2c-* 2>/dev/null || true
-ls -l /sys/class/i2c-dev 2>/dev/null || true
-
-echo
-echo "== i2c-dev modules / kernel config hints =="
-grep -E 'i2c|I2C' /proc/devices 2>/dev/null || true
-zcat /proc/config.gz 2>/dev/null | grep -E 'CONFIG_I2C|CONFIG_I2C_CHARDEV' || true
-
-echo
-echo "== i2cdetect =="
-if command -v i2cdetect >/dev/null 2>&1; then
-    i2cdetect -y 0
-else
-    echo "i2cdetect not found."
-    echo "Install/add i2c-tools later, or use Python/library probe once available."
-fi
-
-echo
-echo "Expected OLED addresses:"
-echo "  0x3c"
-echo "  0x3d"
-
-echo
-echo "Next display tests:"
-echo "  python3 ./tools/run_luma_oled_test.py --port 0 --address 0x3c --device sh1106"
-echo "  python3 ./tools/run_luma_oled_test.py --port 0 --address 0x3c --device ssd1306"
-SH
-chmod +x tools/probe_i2c0_oled.sh
-
-cat > tools/make_oled_test_image.py <<'PY'
-#!/usr/bin/env python3
-from pathlib import Path
-
-W = 128
-H = 64
-
-out_dir = Path("reports")
-out_dir.mkdir(exist_ok=True)
-
-pixels = [[0 for _ in range(W)] for _ in range(H)]
-
-for x in range(W):
-    pixels[0][x] = 1
-    pixels[H - 1][x] = 1
-for y in range(H):
-    pixels[y][0] = 1
-    pixels[y][W - 1] = 1
-
-for i in range(min(W // 2, H)):
-    pixels[i][i * 2] = 1
-    pixels[i][W - 1 - (i * 2)] = 1
-
-for y in range(6, 22):
-    for x in range(6, 34):
-        pixels[y][x] = 1
-
-for y in range(42, 58):
-    for x in range(94, 122):
-        pixels[y][x] = 1
-
-for y in range(28, 36):
-    for x in range(12, 116):
-        if (x // 4) % 2 == 0 or y in (28, 35):
-            pixels[y][x] = 1
-
-pbm = out_dir / "oled_test_128x64.pbm"
-with pbm.open("w", encoding="utf-8") as f:
-    f.write("P1\n")
-    f.write(f"{W} {H}\n")
-    for row in pixels:
-        f.write(" ".join(str(v) for v in row))
-        f.write("\n")
-
-xbm = out_dir / "oled_test_128x64.xbm"
-bytes_out = []
-for y in range(H):
-    for xb in range(0, W, 8):
-        b = 0
-        for bit in range(8):
-            if pixels[y][xb + bit]:
-                b |= 1 << bit
-        bytes_out.append(b)
-
-with xbm.open("w", encoding="utf-8") as f:
-    f.write("#define oled_test_128x64_width 128\n")
-    f.write("#define oled_test_128x64_height 64\n")
-    f.write("static unsigned char oled_test_128x64_bits[] = {\n")
-    for i in range(0, len(bytes_out), 12):
-        f.write("  ")
-        f.write(", ".join(f"0x{b:02x}" for b in bytes_out[i:i + 12]))
-        if i + 12 < len(bytes_out):
-            f.write(",")
-        f.write("\n")
-    f.write("};\n")
-
-print(f"wrote {pbm}")
-print(f"wrote {xbm}")
-PY
-chmod +x tools/make_oled_test_image.py
-
-cat > tools/run_luma_oled_test.py <<'PY'
-#!/usr/bin/env python3
-import argparse
-import os
-import sys
-from pathlib import Path
-
-def add_external_luma_paths():
-    workroot = Path(os.environ.get("WORKROOT", Path.cwd().parent)).resolve()
-    i2csdir = Path(os.environ.get("I2CSDIR", workroot / "i2cs")).resolve()
-
-    for rel in ["luma.core", "luma.oled"]:
-        path = i2csdir / rel
-        if path.exists():
-            sys.path.insert(0, str(path))
-
-def parse_int_auto(s: str) -> int:
-    return int(s, 0)
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Draw a 128x64 test image on an I2C OLED using luma.oled.")
-    parser.add_argument("--port", type=int, default=0, help="Linux I2C bus number, e.g. 0 for /dev/i2c-0.")
-    parser.add_argument("--address", type=parse_int_auto, default=0x3C, help="OLED I2C address, e.g. 0x3c or 0x3d.")
-    parser.add_argument("--device", choices=["sh1106", "ssd1306"], default="sh1106", help="OLED controller driver.")
-    parser.add_argument("--rotate", type=int, default=0, choices=[0, 1, 2, 3], help="luma rotate setting.")
-    args = parser.parse_args()
-
-    add_external_luma_paths()
-
-    try:
-        from luma.core.interface.serial import i2c
-        from luma.core.render import canvas
-        from luma.oled.device import sh1106, ssd1306
-    except Exception as e:
-        print("ERROR: could not import luma.oled stack.", file=sys.stderr)
-        print(str(e), file=sys.stderr)
-        print("", file=sys.stderr)
-        print("Run on the host:", file=sys.stderr)
-        print("  ./tools/setup_i2cs_oled_repos.sh", file=sys.stderr)
-        print("", file=sys.stderr)
-        print("Then ensure Python can import luma.core/luma.oled and Pillow.", file=sys.stderr)
-        print("On a Buildroot target, this may require adding python3/pillow/luma packages or copying a prepared rootfs.", file=sys.stderr)
-        return 2
-
-    driver = sh1106 if args.device == "sh1106" else ssd1306
-
-    serial = i2c(port=args.port, address=args.address)
-    device = driver(serial, width=128, height=64, rotate=args.rotate)
-
-    with canvas(device) as draw:
-        draw.rectangle(device.bounding_box, outline="white", fill="black")
-        draw.line((0, 0, 127, 63), fill="white")
-        draw.line((0, 63, 127, 0), fill="white")
-        draw.rectangle((5, 5, 35, 20), outline="white", fill="white")
-        draw.rectangle((92, 43, 122, 58), outline="white", fill="white")
-        draw.text((40, 4), "LOLV", fill="white")
-        draw.text((40, 18), "I2C OLED", fill="white")
-        draw.text((40, 32), args.device.upper(), fill="white")
-        draw.text((40, 46), f"0x{args.address:02X}", fill="white")
-
-    print(f"displayed OLED test: device={args.device} port={args.port} address=0x{args.address:02x}")
-    return 0
-
-if __name__ == "__main__":
-    raise SystemExit(main())
-PY
-chmod +x tools/run_luma_oled_test.py
-
-./cat_src.sh
-
-echo
-echo "== i2c oled branch setup installed =="
-echo
-echo "Run:"
-echo "  git status"
-echo "  ./tools/setup_i2cs_oled_repos.sh"
-echo "  python3 ./tools/make_oled_test_image.py"
-echo "  ./cat_src.sh"
 
 
 ////////////////////////////////////////////////////////////////
