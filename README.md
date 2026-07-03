@@ -476,3 +476,31 @@ $ cd litex-buildenv-udev
 $ make install
 $ make reload
 ```
+
+
+## I2C OLED branch
+
+The `ext_i2cs_1p3in_GME12864_70` branch proves a 1.3 inch 128x64 I2C OLED from Linux first, using the existing LiteX `i2c0` / `/dev/i2c-0` path.
+
+External display libraries and experiments live outside this repo:
+
+```text
+$WORKROOT/i2cs
+```
+
+Branch-local notes:
+
+```text
+i2c_oled_readme.md
+```
+
+Branch-local scripts:
+
+```text
+cat_src.sh
+tools/setup_i2cs_oled_repos.sh
+tools/probe_i2c0_oled.sh
+tools/make_oled_test_image.py
+tools/run_luma_oled_test.py
+```
+
