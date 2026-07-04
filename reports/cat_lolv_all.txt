@@ -1,7 +1,7 @@
 ================================================================
 LOLV COMPLETE AGGREGATE
 ROOT: /mnt/storage/see/1-c0d3/vhdl/lolv
-GENERATED: 2026-07-03T01:35:22-07:00
+GENERATED: 2026-07-04T12:59:30-07:00
 ================================================================
 
 Included sections:
@@ -20,7 +20,7 @@ Generated component files:
 ================================================================
 LOLV README / DOCS
 ROOT: /mnt/storage/see/1-c0d3/vhdl/lolv
-GENERATED: 2026-07-03T01:35:21-07:00
+GENERATED: 2026-07-04T12:59:30-07:00
 ================================================================
 
 
@@ -3552,7 +3552,7 @@ Bitstream packaging:
 ================================================================
 LOLV MODIFIED SCRIPTS / GATEWARE / CONFIGS
 ROOT: /mnt/storage/see/1-c0d3/vhdl/lolv
-GENERATED: 2026-07-03T01:35:21-07:00
+GENERATED: 2026-07-04T12:59:30-07:00
 ================================================================
 
 
@@ -4608,6 +4608,10 @@ CONFIG_NLS_ASCII=y
 CONFIG_NLS_ISO8859_1=y
 CONFIG_TMPFS=y
 
+# Networking (added for a TUN-based bridge over the serial console link)
+CONFIG_UNIX=y
+CONFIG_TUN=y
+
 
 ////////////////////////////////////////////////////////////////
 // FILE: ./buildroot/board/litex_vexriscv/linux-fpu.config
@@ -4671,6 +4675,7 @@ if [ ! -e $DST_DTB ]; then
 fi
 
 if [ -e $DST_DTB ]; then
+	mkdir -p "${GENIMAGE_TMP}"
 	DTB_DTS=${GENIMAGE_TMP}/rv32.dts
 	dtc -I dtb -O dts -o $DTB_DTS $DST_DTB
 	INITRD_START=$(sed -n -E 's/.*linux,initrd-start[[:space:]]*=[[:space:]]*<([^>]+)>.*/\1/p' $DTB_DTS | head -n 1)
@@ -5302,6 +5307,62 @@ cargo run -p axum_serve -- \
 
 
 ////////////////////////////////////////////////////////////////
+// FILE: ./fix_toolchain_pin.sh
+////////////////////////////////////////////////////////////////
+
+#!/bin/bash
+# Run from lolv/. Fixes the broken rust-toolchain.toml by pinning to the
+# actual dated nightly snapshot (read from rustc itself), not a guess.
+
+WORKDIR="/mnt/storage/see/1-c0d3/vhdl/lolv"
+OLED_DIR="$WORKDIR/../../rust/oled"
+
+echo "== reading the real nightly commit date from rustc =="
+VERBOSE=$(rustc +nightly --version --verbose)
+echo "$VERBOSE"
+NIGHTLY_DATE=$(echo "$VERBOSE" | grep '^commit-date:' | awk '{print $2}')
+echo "  parsed date: $NIGHTLY_DATE"
+echo
+
+if [ -z "$NIGHTLY_DATE" ]; then
+  echo "ABORTING: couldn't parse a commit-date from rustc output above."
+else
+  echo "== installing the exact dated snapshot nightly-$NIGHTLY_DATE =="
+  rustup toolchain install "nightly-$NIGHTLY_DATE"
+  rustup component add rust-src --toolchain "nightly-$NIGHTLY_DATE"
+  echo
+
+  echo "== rewriting rust-toolchain.toml correctly =="
+  cat > "$OLED_DIR/rust-toolchain.toml" << EOF
+[toolchain]
+channel = "nightly-$NIGHTLY_DATE"
+components = ["rust-src"]
+EOF
+  cat "$OLED_DIR/rust-toolchain.toml"
+  echo
+
+  echo "== confirming rustup now resolves this override correctly =="
+  cd "$OLED_DIR"
+  rustup show active-toolchain
+  echo
+
+  echo "== retrying both builds =="
+  echo "-- jetson native --"
+  cargo build --release -p serial_bridge
+  echo "  jetson status: $?"
+  echo
+
+  echo "-- board rv32ima (still needs explicit +nightly for -Z flags) --"
+  cargo +nightly build -Z build-std=std,panic_abort -Z json-target-spec \
+    --target rv32ima-buildroot.json --release -p serial_bridge
+  echo "  board status: $?"
+fi
+
+echo
+echo "done"
+
+
+////////////////////////////////////////////////////////////////
 // FILE: ./gateware/header_probe.v
 ////////////////////////////////////////////////////////////////
 
@@ -5404,55 +5465,6 @@ begin
     in_value(i) <= gpio(i);
   end generate;
 end architecture rtl;
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./install.sh
-////////////////////////////////////////////////////////////////
-
-#!/bin/sh
-# Run this from vhdl/lolv/ (your lolv checkout root) right after unzipping
-# this archive there.
-#
-# It relocates rust/oled/{tiny_128x64,axum_serve} up to 1-c0d3/rust/oled/
-# (two levels above lolv/, i.e. alongside vhdl/) and leaves
-# extension/i2c_oled_tiny_126x64/ in place at lolv/extension/, which is
-# where it belongs.
-set -eu
-
-HERE="$(pwd)"
-DEST="$HERE/../../rust/oled"
-
-if [ ! -d "$HERE/rust/oled" ]; then
-  echo "error: expected ./rust/oled here -- did you unzip in lolv/?" >&2
-  exit 1
-fi
-
-mkdir -p "$DEST"
-
-for crate in tiny_128x64 axum_serve; do
-  if [ -d "$DEST/$crate" ]; then
-    echo "warning: $DEST/$crate already exists -- leaving it alone." >&2
-    echo "  (delete it first if you want this archive's copy instead)" >&2
-    continue
-  fi
-  cp -r "$HERE/rust/oled/$crate" "$DEST/"
-  echo "installed rust/oled/$crate -> $DEST/$crate"
-done
-
-# Bring the workspace Cargo.toml along too, if the destination doesn't have
-# one yet (so `cargo build` from rust/oled/ builds both crates at once).
-if [ -f "$HERE/rust/oled/Cargo.toml" ] && [ ! -f "$DEST/Cargo.toml" ]; then
-  cp "$HERE/rust/oled/Cargo.toml" "$DEST/Cargo.toml"
-  echo "installed rust/oled/Cargo.toml -> $DEST/Cargo.toml"
-fi
-
-rm -rf "$HERE/rust"
-
-echo
-echo "Done."
-echo "  Rust crates now live at: $(cd "$DEST" && pwd)"
-echo "  Build/deploy scripts live at: $HERE/extension/i2c_oled_tiny_126x64/"
 
 
 ////////////////////////////////////////////////////////////////
@@ -6518,6 +6530,300 @@ class TestBuild(unittest.TestCase):
 
 
 ////////////////////////////////////////////////////////////////
+// FILE: ./tools/connect_over_uart.sh
+////////////////////////////////////////////////////////////////
+
+sudo /mnt/storage/ext/litex-venv/bin/litex_term --speed 115200 /dev/ttyACM0
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./tools/deploy-kernel-via-sdcard.sh
+////////////////////////////////////////////////////////////////
+
+#!/bin/sh
+# Run on the Jetson, from lolv/, with the OrangeCrab's SD card in a reader.
+# Copies the newly-built kernel Image (with CONFIG_TUN/CONFIG_UNIX) onto
+# the boot partition (sdb1, LITEXBOOT/FAT32) -- separate from the
+# ocstore/sdb4 copy deploy-via-sdcard.sh uses for axum_serve.
+
+WORKDIR="${WORKDIR:-$(pwd)}"
+BR_OUT="$WORKDIR/build/orange_crab/buildroot"
+NEW_IMAGE="$BR_OUT/images/Image"
+DEV="/dev/sdb"
+MNT="/mnt/oc_boot"
+
+echo "== confirming the new kernel Image exists =="
+if [ ! -f "$NEW_IMAGE" ]; then
+  echo "MISSING: $NEW_IMAGE -- run rebuild_kernel_tun.sh first."
+else
+  echo "  ok: $NEW_IMAGE ($(du -h "$NEW_IMAGE" | cut -f1), built $(date -r "$NEW_IMAGE"))"
+  echo
+
+  echo "== safety check: confirming $DEV is the expected card =="
+  SIZE_BYTES=$(sudo blockdev --getsize64 "$DEV" 2>/dev/null)
+  if [ "$SIZE_BYTES" != "15524167680" ]; then
+    echo "ABORTING: $DEV is not the expected 14.46GiB card (got size $SIZE_BYTES)."
+    echo "Is the card actually inserted? Re-run find-sdcard.sh to check."
+  else
+    echo "  ok, size matches."
+    echo
+
+    echo "== mounting ${DEV}1 (LITEXBOOT) =="
+    sudo mkdir -p "$MNT"
+    sudo umount "$MNT" 2>/dev/null
+    sudo mount "${DEV}1" "$MNT"
+    MOUNT_STATUS=$?
+
+    if [ "$MOUNT_STATUS" -ne 0 ]; then
+      echo "ABORTING: mount failed (exit $MOUNT_STATUS)."
+    else
+      df -h "$MNT"
+      echo
+      echo "== boot partition contents before =="
+      ls -la "$MNT"
+      echo
+
+      if [ ! -f "$MNT/Image" ]; then
+        echo "ABORTING: no existing Image at $MNT/Image -- unexpected boot"
+        echo "partition layout, not overwriting blindly. Check ls output above."
+      else
+        echo "== backing up existing Image =="
+        sudo cp "$MNT/Image" "$MNT/Image.bak.$(date +%s)"
+        echo "  backed up"
+        echo
+
+        echo "== copying new Image =="
+        sudo cp -v "$NEW_IMAGE" "$MNT/Image"
+        echo
+
+        echo "== boot partition contents after =="
+        ls -la "$MNT"
+        echo
+
+        echo "== syncing and unmounting =="
+        sync
+        sudo umount "$MNT"
+        echo "  unmounted cleanly"
+        echo
+
+        echo "Safe to remove the card now. Put it back in the OrangeCrab and boot."
+        echo "Watch the litex_term boot log for 'Copying Image to 0x40000000' --"
+        echo "the byte count should match the new Image's size."
+      fi
+    fi
+  fi
+fi
+
+echo
+echo "done"
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./tools/deploy-serial-bridge-via-sdcard.sh
+////////////////////////////////////////////////////////////////
+
+#!/bin/sh
+# Run on the Jetson, from lolv/, with the OrangeCrab's SD card in a reader.
+# Copies the rv32ima serial_bridge binary onto the ocstore partition.
+
+WORKDIR="${WORKDIR:-$(pwd)}"
+OLED_DIR="$WORKDIR/../../rust/oled"
+BIN="$OLED_DIR/target/rv32ima-buildroot/release/serial_bridge"
+DEV="/dev/sdb"
+MNT="/mnt/oc_storage"
+
+echo "== confirming the built binary exists =="
+if [ ! -f "$BIN" ]; then
+  echo "MISSING: $BIN -- run build_serial_bridge.sh / patch scripts first."
+else
+  echo "  ok: $BIN ($(du -h "$BIN" | cut -f1))"
+  echo
+
+  echo "== safety check: confirming $DEV is the expected card =="
+  SIZE_BYTES=$(sudo blockdev --getsize64 "$DEV" 2>/dev/null)
+  if [ "$SIZE_BYTES" != "15524167680" ]; then
+    echo "ABORTING: $DEV is not the expected 14.46GiB card (got size $SIZE_BYTES)."
+    echo "Is the card actually inserted? Re-run find-sdcard.sh to check."
+  else
+    echo "  ok, size matches."
+    echo
+
+    echo "== mounting ${DEV}4 (ocstore) =="
+    sudo mkdir -p "$MNT"
+    sudo umount "$MNT" 2>/dev/null
+    sudo mount "${DEV}4" "$MNT"
+    MOUNT_STATUS=$?
+
+    if [ "$MOUNT_STATUS" -ne 0 ]; then
+      echo "ABORTING: mount failed (exit $MOUNT_STATUS)."
+    else
+      df -h "$MNT"
+      echo
+
+      echo "== copying binary =="
+      TARGET_DIR="$MNT/deploy/serial_bridge"
+      sudo mkdir -p "$TARGET_DIR"
+      sudo cp -v "$BIN" "$TARGET_DIR/serial_bridge"
+      sudo chmod +x "$TARGET_DIR/serial_bridge"
+      echo
+
+      echo "== verifying =="
+      ls -la "$TARGET_DIR"
+      echo
+
+      echo "== syncing and unmounting =="
+      sync
+      sudo umount "$MNT"
+      echo "  unmounted cleanly"
+      echo
+
+      echo "Safe to remove the card now. Put it back in the OrangeCrab and boot."
+    fi
+  fi
+fi
+
+echo
+echo "done"
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./tools/deploy-via-sdcard.sh
+////////////////////////////////////////////////////////////////
+
+#!/bin/sh
+# Run on the Jetson, from lolv/, with the OrangeCrab's SD card in a reader.
+# Copies the built axum_serve binary + static/ directly onto the ocstore
+# partition (mmcblk0p4 on the board, /dev/sdb4 here), sidestepping PPP
+# entirely for this deploy.
+
+WORKDIR="${WORKDIR:-$(pwd)}"
+OLED_DIR="$WORKDIR/../../rust/oled"
+BIN="$OLED_DIR/target/rv32ima-buildroot/release/axum_serve"
+STATIC_DIR="$OLED_DIR/axum_serve/static"
+DEV="/dev/sdb"
+MNT="/mnt/oc_storage"
+
+echo "== confirming the built binary exists =="
+if [ ! -f "$BIN" ]; then
+  echo "MISSING: $BIN -- run patch_build_rv32.sh first."
+else
+  echo "  ok: $BIN ($(du -h "$BIN" | cut -f1))"
+  echo
+
+  echo "== safety check: confirming $DEV is the expected card =="
+  SIZE_BYTES=$(sudo blockdev --getsize64 "$DEV" 2>/dev/null)
+  if [ "$SIZE_BYTES" != "15524167680" ]; then
+    echo "ABORTING: $DEV is not the expected 14.46GiB card (got size $SIZE_BYTES)."
+    echo "Is the card actually inserted? Re-run find-sdcard.sh to check."
+  else
+    echo "  ok, size matches."
+    echo
+
+    echo "== mounting ${DEV}4 (ocstore) =="
+    sudo mkdir -p "$MNT"
+    sudo umount "$MNT" 2>/dev/null
+    sudo mount "${DEV}4" "$MNT"
+    MOUNT_STATUS=$?
+
+    if [ "$MOUNT_STATUS" -ne 0 ]; then
+      echo "ABORTING: mount failed (exit $MOUNT_STATUS)."
+    else
+      df -h "$MNT"
+      echo
+
+      echo "== copying binary + static assets =="
+      TARGET_DIR="$MNT/deploy/oled_tiny_128x64"
+      sudo mkdir -p "$TARGET_DIR"
+      sudo cp -v "$BIN" "$TARGET_DIR/axum_serve"
+      sudo cp -rv "$STATIC_DIR" "$TARGET_DIR/static"
+      sudo chmod +x "$TARGET_DIR/axum_serve"
+      echo
+
+      echo "== verifying what's on the card now =="
+      find "$TARGET_DIR" -maxdepth 2
+      echo
+
+      echo "== syncing and unmounting =="
+      sync
+      sudo umount "$MNT"
+      echo "  unmounted cleanly"
+      echo
+
+      echo "Safe to remove the card now. Put it back in the OrangeCrab and boot."
+      echo "On the board, once logged in:"
+      echo "  ls -la /root/8gb/deploy/oled_tiny_128x64/"
+      echo "  /root/8gb/deploy/oled_tiny_128x64/axum_serve --bind 0.0.0.0:80 --static-dir /root/8gb/deploy/oled_tiny_128x64/static"
+    fi
+  fi
+fi
+
+echo
+echo "done"
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./tools/dump_orangecrab_pins.sh
+////////////////////////////////////////////////////////////////
+
+#!/bin/bash
+# Run from lolv/. Dumps the actual OrangeCrab platform pin table from your
+# installed litex-boards, so the GPIO:N <-> silkscreen-label mapping is
+# ground truth instead of inference.
+
+source /mnt/storage/ext/litex-venv/bin/activate 2>/dev/null
+
+python3 - << 'PYEOF'
+from litex_boards.platforms import gsd_orangecrab
+import inspect
+
+src = inspect.getsource(gsd_orangecrab)
+# Print just the _io / pin definition section
+lines = src.splitlines()
+printing = False
+for line in lines:
+    if "_io" in line and "=" in line and "[" in line:
+        printing = True
+    if printing:
+        print(line)
+    if printing and line.strip() == "]":
+        break
+PYEOF
+echo "done"
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./tools/find-sdcard.sh
+////////////////////////////////////////////////////////////////
+
+#!/bin/sh
+# Read-only. Run on the Jetson with the OrangeCrab's SD card inserted via a
+# reader. Helps positively identify which device node is the card before
+# any partition/filesystem work touches anything.
+
+echo "== lsblk (all block devices, sizes, mountpoints) =="
+lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,MOUNTPOINT,MODEL
+echo
+
+echo "== dmesg tail (look for the card's insertion, gives you the device name) =="
+dmesg | tail -30
+echo
+
+echo "== /proc/partitions =="
+cat /proc/partitions
+echo
+
+echo "== fdisk -l on each removable-looking device (read-only listing) =="
+for dev in $(lsblk -dn -o NAME,RM | awk '$2==1{print $1}'); do
+  echo "--- /dev/$dev ---"
+  sudo fdisk -l "/dev/$dev" 2>/dev/null
+  echo
+done
+
+echo "done -- do not run mkfs/parted/dd against anything until you've confirmed"
+echo "the exact device name above matches a ~4-16GB card, NOT a Jetson disk."
+
+
+////////////////////////////////////////////////////////////////
 // FILE: ./tools/make_oled_test_image.py
 ////////////////////////////////////////////////////////////////
 
@@ -6718,6 +7024,137 @@ elif not write:
 
 
 ////////////////////////////////////////////////////////////////
+// FILE: ./tools/partition-sdcard.sh
+////////////////////////////////////////////////////////////////
+
+#!/bin/sh
+# Repartitions the OrangeCrab SD card: shrinks root to 1.5GiB, adds a 4GiB
+# swap partition and an ~8.71GiB storage partition in the reclaimed space.
+#
+# DRY RUN BY DEFAULT. Run once with no args to review the plan, then again
+# with --commit to actually execute it.
+#
+#   sh partition-sdcard.sh            # dry run, prints the plan only
+#   sh partition-sdcard.sh --commit   # actually does it
+
+DEV="/dev/sdb"
+COMMIT=0
+[ "$1" = "--commit" ] && COMMIT=1
+
+echo "== safety check: confirming $DEV is the expected card =="
+SIZE_BYTES=$(sudo blockdev --getsize64 "$DEV" 2>/dev/null)
+echo "  $DEV size: ${SIZE_BYTES:-unknown} bytes (expect 15524167680)"
+
+if [ "$SIZE_BYTES" != "15524167680" ]; then
+  echo
+  echo "ABORTING: $DEV is not the expected 14.46GiB card (got size $SIZE_BYTES)."
+  echo "Do not proceed -- re-run find-sdcard.sh to re-identify the device."
+else
+  echo "  ok, size matches."
+  echo
+
+  echo "== current partition table =="
+  sudo fdisk -l "$DEV"
+  echo
+
+  echo "== backing up current partition table (cheap, instant) =="
+  BACKUP="/mnt/storage/orangecrab_sdcard_ptable_$(date +%Y%m%d_%H%M%S).sfdisk"
+  sudo sfdisk -d "$DEV" > "$BACKUP" 2>/dev/null
+  echo "  saved to $BACKUP"
+  echo "  (restore with: sudo sfdisk $DEV < $BACKUP -- table only, not data)"
+  echo
+
+  echo "== NOTE: for extra safety, a full image backup before --commit is =="
+  echo "== recommended (takes a few minutes, ~14.5GB, plenty of room on   =="
+  echo "== /mnt/storage): sudo dd if=$DEV of=/mnt/storage/orangecrab_sdcard_backup.img bs=4M status=progress"
+  echo
+
+  echo "== planned new partition table =="
+  cat << 'PLAN'
+  p1 (unchanged): start=2048     size=522240    (255MiB)   boot, FAT32
+  p2 (shrunk):    start=524288   size=3145728   (1536MiB)  root, ext4
+  p3 (new):       start=3670016  size=8388608   (4096MiB)  swap
+  p4 (new):       start=12058624 size=18262016  (~8.71GiB) storage, ext4
+PLAN
+  echo
+
+  if [ "$COMMIT" != "1" ]; then
+    echo "DRY RUN ONLY -- nothing was changed."
+    echo "Review the plan above, then re-run:  sh partition-sdcard.sh --commit"
+  else
+    echo "== COMMIT MODE: making changes now =="
+    echo
+
+    echo "-- unmounting any mounted partitions on $DEV --"
+    for p in "${DEV}1" "${DEV}2"; do
+      mountpoint_check=$(mount | grep "^$p ")
+      if [ -n "$mountpoint_check" ]; then
+        sudo umount "$p"
+        echo "  unmounted $p"
+      fi
+    done
+    echo
+
+    echo "-- checking filesystem on ${DEV}2 before shrink --"
+    sudo e2fsck -f -y "${DEV}2"
+    echo
+
+    echo "-- shrinking filesystem on ${DEV}2 to 1536M --"
+    sudo resize2fs "${DEV}2" 1536M
+    RESIZE_STATUS=$?
+
+    if [ "$RESIZE_STATUS" -ne 0 ]; then
+      echo "ABORTING: resize2fs failed (exit $RESIZE_STATUS). Partition table NOT touched."
+    else
+      echo
+      echo "-- rewriting partition table with sfdisk --"
+      sudo sfdisk "$DEV" << 'SFDISK_EOF'
+label: dos
+unit: sectors
+
+/dev/sdb1 : start=2048, size=522240, type=c, bootable
+/dev/sdb2 : start=524288, size=3145728, type=83
+/dev/sdb3 : start=3670016, size=8388608, type=82
+/dev/sdb4 : start=12058624, size=18262016, type=83
+SFDISK_EOF
+      SFDISK_STATUS=$?
+
+      if [ "$SFDISK_STATUS" -ne 0 ]; then
+        echo "ABORTING: sfdisk failed (exit $SFDISK_STATUS)."
+        echo "Restore the old table with: sudo sfdisk $DEV < $BACKUP"
+      else
+        echo
+        echo "-- reloading partition table --"
+        sudo partprobe "$DEV" 2>/dev/null
+        sleep 1
+        echo
+
+        echo "-- verifying root filesystem after resize --"
+        sudo e2fsck -f -y "${DEV}2"
+        echo
+
+        echo "-- creating swap on ${DEV}3 --"
+        sudo mkswap -L ocswap "${DEV}3"
+        echo
+
+        echo "-- creating ext4 storage filesystem on ${DEV}4 --"
+        sudo mkfs.ext4 -L ocstore "${DEV}4"
+        echo
+
+        echo "== final partition table =="
+        sudo fdisk -l "$DEV"
+        echo
+        echo "DONE. Card is ready. Next: fstab + deploy scripts for the OrangeCrab side."
+      fi
+    fi
+  fi
+fi
+
+echo
+echo "done"
+
+
+////////////////////////////////////////////////////////////////
 // FILE: ./tools/probe_i2c0_oled.sh
 ////////////////////////////////////////////////////////////////
 
@@ -6757,6 +7194,119 @@ echo
 echo "Next display tests:"
 echo "  python3 ./tools/run_luma_oled_test.py --port 0 --address 0x3c --device sh1106"
 echo "  python3 ./tools/run_luma_oled_test.py --port 0 --address 0x3c --device ssd1306"
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./tools/rebuild_kernel_tun.sh
+////////////////////////////////////////////////////////////////
+
+#!/bin/bash
+# Run from lolv/. Rebuilds ONLY the kernel (rootfs/dtb/opensbi untouched)
+# after the linux.config patch, using the same LOEXSO/BR_OUT pattern from
+# the original bring-up.
+
+WORKDIR="${WORKDIR:-$(pwd)}"
+EXTERNAL="${EXTERNAL:-/mnt/storage/ext}"
+LOEXSO="${LOEXSO:-$EXTERNAL}"
+BR_OUT="$WORKDIR/build/orange_crab/buildroot"
+
+echo "== pre-flight checks =="
+echo "  WORKDIR:  $WORKDIR"
+echo "  EXTERNAL: $EXTERNAL"
+echo "  LOEXSO:   $LOEXSO"
+echo "  BR_OUT:   $BR_OUT"
+echo
+
+OK=1
+
+if [ ! -f "$EXTERNAL/fpga-env.sh" ]; then
+  echo "MISSING: $EXTERNAL/fpga-env.sh -- set EXTERNAL=/path/to/ext before running."
+  OK=0
+fi
+
+if [ ! -d "$LOEXSO/buildroot" ]; then
+  echo "MISSING: $LOEXSO/buildroot -- set LOEXSO=/path/to/ext before running."
+  OK=0
+fi
+
+if [ ! -d "$BR_OUT" ]; then
+  echo "MISSING: $BR_OUT -- expected this from the original image build."
+  OK=0
+fi
+
+CFG="$WORKDIR/buildroot/board/litex_vexriscv/linux.config"
+if ! grep -q '^CONFIG_TUN=y' "$CFG" 2>/dev/null; then
+  echo "MISSING: CONFIG_TUN=y in $CFG -- run patch_kernel_config_tun.sh first."
+  OK=0
+fi
+
+if [ "$OK" != "1" ]; then
+  echo
+  echo "ABORTING pre-flight checks failed -- nothing built."
+else
+  echo "  all checks passed."
+  echo
+
+  echo "== sourcing fpga-env.sh =="
+  source "$EXTERNAL/fpga-env.sh"
+  hash -r
+  echo
+
+  echo "== cleaning LD_LIBRARY_PATH (Buildroot refuses to run otherwise) =="
+  export LD_LIBRARY_PATH="$(python3 - << 'PY'
+import os
+parts = os.environ.get("LD_LIBRARY_PATH", "").split(":")
+clean = [p for p in parts if p not in ("", ".")]
+print(":".join(clean))
+PY
+)"
+  echo "  LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+  echo
+
+  cd "$WORKDIR"
+
+  echo "== forcing kernel reconfigure (picks up the patched linux.config) =="
+  START=$(date +%s)
+  make -C "$LOEXSO/buildroot" O="$BR_OUT" linux-reconfigure
+  RECONFIG_STATUS=$?
+  echo
+
+  if [ "$RECONFIG_STATUS" -ne 0 ]; then
+    echo "ABORTING: linux-reconfigure failed (exit $RECONFIG_STATUS)."
+  else
+    echo "== verifying the live kernel .config picked up the change =="
+    KCONFIG=$(find "$BR_OUT/build" -maxdepth 1 -type d -name 'linux-*' | head -1)/.config
+    grep -E 'CONFIG_UNIX=|CONFIG_TUN=' "$KCONFIG" || echo "  not found in $KCONFIG (unexpected)"
+    echo
+
+    echo "== rebuilding (kernel package only needs to change, but running the"
+    echo "== full target is what your original bring-up used and is proven) =="
+    make -C "$LOEXSO/buildroot" O="$BR_OUT"
+    BUILD_STATUS=$?
+    END=$(date +%s)
+    echo
+    echo "  elapsed: $(( (END - START) / 60 ))m $(( (END - START) % 60 ))s"
+    echo
+
+    if [ "$BUILD_STATUS" -ne 0 ]; then
+      echo "ABORTING: build failed (exit $BUILD_STATUS)."
+    else
+      echo "== relinking images/Image =="
+      ln -snf "$BR_OUT/images/Image" images/Image
+      ls -la images/Image
+      echo
+
+      echo "== confirming CONFIG_TUN/CONFIG_UNIX made it into the final kernel config =="
+      grep -E 'CONFIG_UNIX=|CONFIG_TUN=' "$KCONFIG"
+      echo
+
+      echo "BUILD OK. Next: copy the new Image onto the SD card's boot partition."
+    fi
+  fi
+fi
+
+echo
+echo "done"
 
 
 ////////////////////////////////////////////////////////////////
@@ -6905,6 +7455,167 @@ echo "Next:"
 echo "  cd $WORKROOT/lolv"
 echo "  ./tools/probe_i2c0_oled.sh"
 echo "  python3 ./tools/run_luma_oled_test.py --port 0 --address 0x3c --device sh1106"
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./tools/setup-rv32-target.sh
+////////////////////////////////////////////////////////////////
+
+#!/bin/sh
+# Save + run: generates the rv32ima target spec, wires up .cargo/config.toml
+# to use your buildroot gcc as the linker, and prints the exact build command
+# for axum_serve.
+#
+# Prereqs checked here: rustup with a nightly toolchain + rust-src component.
+# This does NOT install rustup/nightly for you -- if missing, it prints the
+# exact command and stops there so nothing gets installed without you seeing
+# it first.
+
+WORKDIR="${WORKDIR:-$(pwd)}"
+BR_OUT="$WORKDIR/build/orange_crab/buildroot"
+GCC="$BR_OUT/host/bin/riscv32-buildroot-linux-gnu-gcc"
+OLED_DIR="$WORKDIR/../../rust/oled"
+
+echo "== 1. confirming buildroot gcc =="
+if [ -x "$GCC" ]; then
+  echo "  ok: $GCC"
+else
+  echo "  MISSING: $GCC"
+  echo "  Re-run the check-gcc.sh step first."
+fi
+echo
+
+echo "== 2. confirming rust/oled layout =="
+if [ -d "$OLED_DIR/axum_serve" ]; then
+  echo "  ok: $OLED_DIR"
+else
+  echo "  MISSING: $OLED_DIR/axum_serve"
+  echo "  Did install.sh run correctly? Check $WORKDIR/../../rust/oled"
+fi
+echo
+
+echo "== 3. confirming nightly rust + rust-src =="
+HAVE_NIGHTLY=0
+if command -v rustup >/dev/null 2>&1; then
+  if rustup toolchain list 2>/dev/null | grep -q '^nightly'; then
+    if rustup component list --toolchain nightly 2>/dev/null | grep -q '^rust-src (installed)'; then
+      HAVE_NIGHTLY=1
+      echo "  ok: nightly + rust-src installed"
+    else
+      echo "  nightly is installed, but rust-src component is missing. Install it with:"
+      echo "    rustup component add rust-src --toolchain nightly"
+    fi
+  else
+    echo "  no nightly toolchain installed. Install it with:"
+    echo "    rustup toolchain install nightly"
+    echo "    rustup component add rust-src --toolchain nightly"
+  fi
+else
+  echo "  rustup not found. Install rustup first:"
+  echo "    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+fi
+echo
+
+if [ -x "$GCC" ] && [ -d "$OLED_DIR/axum_serve" ] && [ "$HAVE_NIGHTLY" = "1" ]; then
+  echo "== 4. generating target spec =="
+  cd "$OLED_DIR" || exit 0
+
+  rustc +nightly -Z unstable-options --print target-spec-json \
+    --target riscv32gc-unknown-linux-gnu > rv32ima-buildroot.json 2>/tmp/rv32ima-spec.err
+
+  if [ -s rv32ima-buildroot.json ]; then
+    echo "  wrote $OLED_DIR/rv32ima-buildroot.json"
+
+    python3 - "$OLED_DIR/rv32ima-buildroot.json" << 'PYEOF'
+import json, sys
+path = sys.argv[1]
+with open(path) as f:
+    spec = json.load(f)
+spec["features"] = "+m,+a"
+spec["llvm-abiname"] = "ilp32"
+with open(path, "w") as f:
+    json.dump(spec, f, indent=2)
+print("  patched features -> +m,+a, llvm-abiname -> ilp32")
+PYEOF
+
+  else
+    echo "  FAILED to generate target spec, see /tmp/rv32ima-spec.err:"
+    cat /tmp/rv32ima-spec.err
+  fi
+  echo
+
+  echo "== 5. writing .cargo/config.toml linker entry =="
+  mkdir -p "$OLED_DIR/.cargo"
+  cat > "$OLED_DIR/.cargo/config.toml" << CARGOEOF
+[target.rv32ima-buildroot]
+linker = "$GCC"
+CARGOEOF
+  echo "  wrote $OLED_DIR/.cargo/config.toml"
+  echo
+
+  echo "== 6. build command =="
+  echo "  cd $OLED_DIR"
+  echo "  cargo +nightly build -Z build-std=std,panic_abort \\"
+  echo "    --target rv32ima-buildroot.json --release -p axum_serve"
+else
+  echo "Skipping target-spec generation until the checks above pass."
+fi
+
+echo
+echo "done"
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./tools/start-ppp-jetson.sh
+////////////////////////////////////////////////////////////////
+
+#!/bin/sh
+# Run on the Jetson, from lolv/, AFTER the board-side start-ppp.sh has
+# already started pppd (that terminal should look silent/garbled now --
+# that's correct). Kills litex_term to free the port, starts the Jetson
+# side of the same PPP link, and verifies it comes up.
+
+echo "== killing any litex_term holding the serial port =="
+pkill -f litex_term 2>/dev/null
+sleep 1
+echo
+
+echo "== confirming /dev/ttyACM0 is free =="
+sudo fuser /dev/ttyACM0 2>&1
+echo
+
+echo "== starting pppd (local 192.168.7.2, peer 192.168.7.1) =="
+sudo pppd /dev/ttyACM0 115200 192.168.7.2:192.168.7.1 \
+  local noauth nocrtscts nodetach persist maxfail 3 \
+  > /tmp/ppp-jetson.log 2>&1 &
+
+PPPD_PID=$!
+echo "  pppd started, pid $PPPD_PID, logging to /tmp/ppp-jetson.log"
+echo
+
+echo "== waiting up to 15s for ppp0 to come up =="
+i=0
+while [ $i -lt 15 ]; do
+  if ip addr show ppp0 >/dev/null 2>&1; then
+    echo "  ppp0 is up:"
+    ip addr show ppp0
+    break
+  fi
+  sleep 1
+  i=$((i+1))
+done
+
+if ! ip addr show ppp0 >/dev/null 2>&1; then
+  echo "  ppp0 did NOT come up within 15s. Recent log:"
+  tail -30 /tmp/ppp-jetson.log
+else
+  echo
+  echo "== pinging the board =="
+  ping -c 3 192.168.7.1
+fi
+
+echo
+echo "done (pppd pid $PPPD_PID left running -- kill it with: sudo kill $PPPD_PID)"
 
 
 ////////////////////////////////////////////////////////////////

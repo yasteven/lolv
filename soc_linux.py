@@ -16,7 +16,7 @@ from litex.build.generic_platform import Pins, IOStandard, Misc
 
 from litex.soc.cores.cpu.vexriscv_smp import VexRiscvSMP
 from litex.soc.cores.gpio    import GPIOOut, GPIOIn
-from litex.soc.cores.spi     import SPIMaster
+from litex.soc.cores.spi     import SPIMaster, SPISlave
 from litex.soc.cores.bitbang import I2CMaster
 from litex.soc.cores.pwm     import PWM
 
@@ -51,6 +51,30 @@ class HeaderProbe(Module, AutoCSR):
         )
 
         self.comb += self.pins_in.status.eq(pins_in)
+
+
+# SPI Slave Ext CSR wrapper -------------------------------------------------------------------------
+#
+# Thin CSR shim around LiteX's existing litex.soc.cores.spi.SPISlave core --
+# same pattern as HeaderProbe, just wrapping an already-written module
+# instead of custom VHDL. No IRQ for v1 (kept boring per basic_readme.md);
+# Linux polls `done`/`length` via CSR.
+
+class SpiSlaveExt(Module, AutoCSR):
+    def __init__(self, pads, data_width):
+        self.submodules.spi = spi = SPISlave(pads, data_width=data_width)
+
+        self.mosi   = CSRStatus(data_width,  description="Last received MOSI data.")
+        self.miso   = CSRStorage(data_width, description="Data to shift out as MISO on next transaction.")
+        self.length = CSRStatus(8,            description="Length of last transaction, in bits.")
+        self.done   = CSRStatus(1,            description="Transaction done/idle.")
+
+        self.comb += [
+            spi.miso.eq(self.miso.storage),
+            self.mosi.status.eq(spi.mosi),
+            self.length.status.eq(spi.length),
+            self.done.status.eq(spi.done),
+        ]
 
 
 # SoCLinux -----------------------------------------------------------------------------------------
@@ -122,6 +146,32 @@ def SoCLinux(soc_cls, **kwargs):
             #
             # GPIO:2/GPIO:3 are left alone because this SoC already has i2c0.
             # GPIO:0/GPIO:14/GPIO:15/GPIO:16 are left alone for possible SPI-style use.
+
+            # SPI Slave (Jetson<->OrangeCrab realtime link) -------------------------------------
+            #
+            # Dedicated pins reserved above:
+            #   GPIO:0  (N17) -> cs_n
+            #   GPIO:14 (N15) -> miso
+            #   GPIO:15 (R17) -> mosi
+            #   GPIO:16 (N16) -> clk
+            #
+            # 256-byte (2048-bit) transactions.
+            self.platform.add_extension([
+                ("spi_ext", 0,
+                    Subsignal("cs_n", Pins("N17")),
+                    Subsignal("clk",  Pins("N16")),
+                    Subsignal("mosi", Pins("R17")),
+                    Subsignal("miso", Pins("N15")),
+                    IOStandard("LVCMOS33"),
+                    Misc("PULLMODE=UP"),
+                )
+            ])
+            self.submodules.spi_ext = SpiSlaveExt(
+                pads       = self.platform.request("spi_ext", 0),
+                data_width = 256 * 8,
+            )
+            # Keep spi_ext away from CSR bank 0 (ctrl) and bank 9 (header_probe).
+            self.csr.add("spi_ext", n=10)
 
 
         # RGB Led ----------------------------------------------------------------------------------
