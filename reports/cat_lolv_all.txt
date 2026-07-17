@@ -1,26 +1,28 @@
 ================================================================
 LOLV COMPLETE AGGREGATE
-ROOT: /mnt/storage/see/1-c0d3/vhdl/lolv
-GENERATED: 2026-07-04T12:59:30-07:00
+ROOT: /home/seejn/1tb/see/1-c0d3/vhdl/lolv
+GENERATED: 2026-07-16T18:49:40-07:00
 ================================================================
 
 Included sections:
-  1. README/docs
-  2. Modified scripts/gateware/configs
+  1. LOLV README/docs
+  2. LOLV modified scripts/gateware/configs
+  3. ../../rust/oled source, manifests, and info
 
 Generated component files:
   ./reports/cat_lolv_readmes.txt
   ./reports/cat_lolv_modified_scripts.txt
+  ./reports/cat_rust_oled.txt
 
 
 ################################################################
-# SECTION 1: README / DOCS
+# SECTION 1: LOLV README / DOCS
 ################################################################
 
 ================================================================
 LOLV README / DOCS
-ROOT: /mnt/storage/see/1-c0d3/vhdl/lolv
-GENERATED: 2026-07-04T12:59:30-07:00
+ROOT: /home/seejn/1tb/see/1-c0d3/vhdl/lolv
+GENERATED: 2026-07-16T18:49:40-07:00
 ================================================================
 
 
@@ -473,6 +475,22 @@ $ cat /dev/urandom >/dev/fb0
 # FILE: ./i2c_oled_readme.md
 ################################################################
 
+<!-- LOLV_RUST_PATHS_START -->
+## Rust sibling projects
+
+From `lolv/`:
+
+```text
+$WORKDIR/../../rust/oled/
+    OLED-specific project
+
+$WORKDIR/../../rust/spis/
+    parent directory containing independent SPI projects
+```
+
+`rust/spis/` is not itself a Cargo project.
+<!-- LOLV_RUST_PATHS_END -->
+
 
 # I2C OLED branch notes: `ext_i2cs_1p3in_GME12864_70`
 
@@ -512,7 +530,9 @@ That keeps `lolv/` mergeable and keeps third-party display/library repos out of 
 export EXTERNAL="$HOME/1tb/ext"
 export WORKROOT="$HOME/1tb/see/1-c0d3/vhdl"
 export WORKDIR="$WORKROOT/lolv"
-export I2CSDIR="$WORKROOT/i2cs"
+export RUSTROOT="$WORKDIR/../../rust"
+export OLED_DIR="$RUSTROOT/oled"
+export SPIS_DIR="$RUSTROOT/spis"
 
 cd "$WORKDIR"
 source "$EXTERNAL/fpga-env.sh"
@@ -652,7 +672,9 @@ $WORKROOT/i2cs/luma.oled
 For manual testing:
 
 ```bash
-export I2CSDIR="$WORKROOT/i2cs"
+export RUSTROOT="$WORKDIR/../../rust"
+export OLED_DIR="$RUSTROOT/oled"
+export SPIS_DIR="$RUSTROOT/spis"
 export PYTHONPATH="$I2CSDIR/luma.core:$I2CSDIR/luma.oled:$PYTHONPATH"
 python3 ./tools/run_luma_oled_test.py --port 0 --address 0x3c --device sh1106
 ```
@@ -706,6 +728,50 @@ After this passes, a later branch can decide whether a custom FPGA I2C/OLED cont
 ################################################################
 # FILE: ./install_readme.md
 ################################################################
+
+<!-- LOLV_CURRENT_RUNTIME_START -->
+## Current Linux runtime and SD layout
+
+The Buildroot login prompt does not start Linux. Linux has already booted before the prompt appears:
+
+```text
+LiteX BIOS
+-> OpenSBI
+-> Linux 6.9
+-> /sbin/init
+-> filesystem mounts
+-> swap
+-> syslog/network
+-> login prompt
+```
+
+Current SD layout:
+
+```text
+/dev/mmcblk0p1   255 MiB   FAT boot
+/dev/mmcblk0p2   1.5 GiB   root filesystem mounted at /
+/dev/mmcblk0p3   4.0 GiB   swap
+/dev/mmcblk0p4   8.5 GiB   data partition mounted at /root/8gb
+```
+
+Observed free space:
+
+```text
+/           about 1.3 GiB free
+/root/8gb   about 8.0 GiB free
+```
+
+Target checks:
+
+```sh
+df -h / /root/8gb
+mount | grep mmcblk0
+cat /proc/partitions
+fdisk -l /dev/mmcblk0 2>/dev/null
+```
+
+Use `/root/8gb` for deployed binaries, staging files, logs, and application data.
+<!-- LOLV_CURRENT_RUNTIME_END -->
 
 # Install Notes
 
@@ -1841,6 +1907,44 @@ Other distributions such as Alpine are possible later, but they are not the firs
 # FILE: ./modify_readme.md
 ################################################################
 
+<!-- LOLV_SPI_MILESTONE_START -->
+## Proven external SPI milestone
+
+`soc_linux.py` now includes `SpiSlaveExt`:
+
+```text
+Jetson /dev/spidev0.0
+-> SPI mode 0
+-> OrangeCrab ECP5 pins
+-> LiteX SPISlave
+-> stable Linux mailbox
+-> raw edge counters
+-> Linux devmem / future Rust MMIO
+```
+
+Correct pins:
+
+```text
+CS0  -> GPIO:0  / N17
+SCK  -> GPIO:16 / N16
+MOSI -> GPIO:15 / R17
+MISO <- GPIO:14 / N15
+```
+
+The original fault was a physical SCK/MOSI crossover. After correction, `ff aa 55 81` produced:
+
+```text
+rx_data                        0xFFAA5581
+rx_length                      0x00000020
+raw_sck_rise_count             0x00000020
+raw_sck_fall_count             0x00000020
+raw_mosi_high_on_sck_rise      0x00000012
+raw_mosi_low_on_sck_rise       0x0000000E
+```
+
+MISO full-duplex transfer also passed. See `spi_readme.md`.
+<!-- LOLV_SPI_MILESTONE_END -->
+
 
 # Modify Notes: Custom VHDL IP wired to LiteX/Linux CSRs
 
@@ -2758,6 +2862,51 @@ This is the minimal working bridge needed before replacing `header_probe` with a
 # FILE: ./README.md
 ################################################################
 
+<!-- LOLV_LOCAL_STATUS_START -->
+## Local OrangeCrab status
+
+This checkout is the OrangeCrab Linux-on-LiteX integration tree.
+
+Current proven additions:
+
+- custom VHDL header probe exposed through LiteX CSRs;
+- Buildroot Linux boot from SD;
+- Jetson-to-OrangeCrab SPI slave gateware;
+- stable completed-transaction mailbox;
+- raw CS/SCK/MOSI diagnostic counters;
+- verified mode-0 MOSI and MISO transfers;
+- verified 32-bit receive pattern `0xFFAA5581`;
+- corrected physical SCK/MOSI crossover.
+
+Local documentation:
+
+```text
+install_readme.md     toolchain, FPGA/Linux build, SD install, boot
+modify_readme.md      custom gateware and CSR history
+i2c_oled_readme.md    OLED/I2C work
+spi_readme.md         current SPI interface and Rust transition
+basic_readme.md       deterministic quotient/VHDL checklist
+```
+
+Working paths:
+
+```bash
+export EXTERNAL="$HOME/1tb/ext"
+export WORKROOT="$HOME/1tb/see/1-c0d3/vhdl"
+export WORKDIR="$WORKROOT/lolv"
+export RUSTROOT="$WORKDIR/../../rust"
+```
+
+Rust siblings:
+
+```text
+$WORKDIR/../../rust/oled/
+$WORKDIR/../../rust/spis/
+```
+
+`rust/spis/` contains independent projects; it is not one Cargo project.
+<!-- LOLV_LOCAL_STATUS_END -->
+
 ```
                                    __   _
                                   / /  (_)__  __ ____ __
@@ -3267,25 +3416,170 @@ tools/run_luma_oled_test.py
 
 
 ################################################################
-# FILE: ./reports/orangecrab_linux_baseline.md
+# FILE: ./spi_readme.md
 ################################################################
 
-# OrangeCrab Linux baseline build report
+# OrangeCrab–Jetson SPI link
 
-Generated: 2026-06-23T16:35:37-04:00
+## Working directories
 
-## Git
+All project work starts from `lolv/`.
 
-Branch: see/orangecrab-linux-gpio-ip
-Commit: 922cea3963ac78428889a065b64730a4c69fdd43
+```bash
+export EXTERNAL="$HOME/1tb/ext"
+export WORKROOT="$HOME/1tb/see/1-c0d3/vhdl"
+export WORKDIR="$WORKROOT/lolv"
+export RUSTROOT="$WORKDIR/../../rust"
+export OLED_DIR="$RUSTROOT/oled"
+export SPIS_DIR="$RUSTROOT/spis"
+
+cd "$WORKDIR"
+source "$EXTERNAL/fpga-env.sh"
+hash -r
+```
+
+`rust/spis/` is a parent directory containing independent SPI-related projects. It is not itself a Cargo project or workspace.
+
+Current/future locations:
+
+```text
+$WORKDIR/../../rust/oled/
+    OLED-specific project
+
+$WORKDIR/../../rust/spis/basic_spi_io/
+    first generic SPI file-transfer project
+
+$WORKDIR/../../rust/spis/<future-layer2-project>/
+    future project-specific SPI control/data service
+```
+
+## Proven hardware
+
+```text
+OrangeCrab: 85F rev 0.2
+Jetson:     Orin Nano
+SPI mode:   0
+Jetson:     master, /dev/spidev0.0
+OrangeCrab: slave, LiteX SPISlave
+sys_clk:    64 MHz
+```
+
+Correct wiring:
+
+```text
+Jetson pin 24 CS0  -> OrangeCrab GPIO:0  / N17 / cs_n
+Jetson pin 23 SCK  -> OrangeCrab GPIO:16 / N16 / clk
+Jetson pin 19 MOSI -> OrangeCrab GPIO:15 / R17 / mosi
+Jetson pin 21 MISO <- OrangeCrab GPIO:14 / N15 / miso
+Jetson pin 25 GND  -> OrangeCrab GND
+```
+
+The original receive failure was caused by SCK and MOSI being physically crossed.
+
+## Gateware interface
+
+`soc_linux.py` contains `SpiSlaveExt`, which wraps LiteX `SPISlave` with:
+
+- a stable one-entry completed-RX mailbox;
+- ACK and clear controls;
+- transaction count;
+- stable RX data and bit length;
+- direct raw state;
+- independent CS/SCK/MOSI counters.
+
+The current hardware word is 32 bits. Larger software messages are fragmented above this layer.
+
+```text
+spi_ext base = 0xf0005000
+
+0xf0005000  rx_data                         RO
+0xf0005004  tx_data                         RW
+0xf0005008  rx_length                       RO
+0xf000500c  status                          RO
+0xf0005010  transaction_count               RO
+0xf0005014  control                         RW
+0xf0005018  raw_mosi                        RO
+0xf000501c  raw_length                      RO
+0xf0005020  raw_done                        RO
+0xf0005024  raw_pins                        RO
+0xf0005028  raw_cs_assert_count             RO
+0xf000502c  raw_cs_deassert_count           RO
+0xf0005030  raw_sck_rise_count              RO
+0xf0005034  raw_sck_fall_count              RO
+0xf0005038  raw_mosi_high_on_sck_rise       RO
+0xf000503c  raw_mosi_low_on_sck_rise        RO
+```
+
+Control:
+
+```text
+bit 0: ACK/drop current RX mailbox
+bit 1: clear mailbox, overrun, transaction count, and raw counters
+```
 
 Status:
-A  install_readme.md
-?? images/boot.json
-?? images/rv32.dtb
-?? reports/
 
-## Build command
+```text
+bit 0: RX valid
+bit 1: SPI busy
+bit 2: RX overrun
+```
+
+## Proven transactions
+
+Jetson sent:
+
+```text
+ff aa 55 81
+```
+
+OrangeCrab observed:
+
+```text
+rx_data                        0xFFAA5581
+rx_length                      0x00000020
+transaction_count              0x00000001
+raw_cs_assert_count            0x00000001
+raw_cs_deassert_count          0x00000001
+raw_sck_rise_count             0x00000020
+raw_sck_fall_count             0x00000020
+raw_mosi_high_on_sck_rise      0x00000012
+raw_mosi_low_on_sck_rise       0x0000000E
+```
+
+That pattern contains exactly 18 one-bits and 14 zero-bits. MISO full-duplex transfer also passed with a known 32-bit `tx_data` pattern.
+
+## Retained diagnostics
+
+```text
+tools/spi_diag_master.c
+tools/read_spi_mailbox.sh
+tools/spi_miso_jetson.sh
+tools/spi_miso_orangecrab.sh
+```
+
+Build the reproducible Jetson diagnostic binary when needed:
+
+```bash
+cd "$WORKDIR"
+
+cc -O2 -Wall -Wextra -Werror \
+  tools/spi_diag_master.c \
+  -o tools/spi_diag_master
+```
+
+Remove the compiled binary after testing:
+
+```bash
+rm -f "$WORKDIR/tools/spi_diag_master"
+```
+
+## Build and flash
+
+```bash
+cd "$WORKDIR"
+source "$EXTERNAL/fpga-env.sh"
+hash -r
 
 ./make.py \
   --board=orange_crab \
@@ -3296,263 +3590,83 @@ A  install_readme.md
   --build \
   -- \
   --sdram-device=MT41K256M16
+```
 
-## Key artifacts
+A placement timing estimate can fail before the final routed timing passes. Use the final routed timing report.
 
--rw-rw-r-- 1 seejn seejn 5.7K Jun 23 06:06 build/orange_crab/csr.csv
--rw-rw-r-- 1 seejn seejn  12K Jun 23 05:48 build/orange_crab/csr.json
--rw-rw-r-- 1 seejn seejn 618K Jun 23 06:01 build/orange_crab/gateware/orange_crab.bit
--rw-rw-r-- 1 seejn seejn 618K Jun 23 06:06 build/orange_crab/gateware/orange_crab.bit.dfu
--rw-rw-r-- 1 seejn seejn 8.6M Jun 23 06:01 build/orange_crab/gateware/orange_crab.config
--rw-rw-r-- 1 seejn seejn  32M Jun 23 05:54 build/orange_crab/gateware/orange_crab.json
--rw-rw-r-- 1 seejn seejn 6.4M Jun 23 05:54 build/orange_crab/gateware/orange_crab.rpt
--rw-rw-r-- 1 seejn seejn 1.3M Jun 23 06:01 build/orange_crab/gateware/orange_crab.svf
--rw-rw-r-- 1 seejn seejn 3.0K Jun 23 06:06 build/orange_crab/orange_crab.dtb
--rw-rw-r-- 1 seejn seejn 4.8K Jun 23 06:06 build/orange_crab/orange_crab.dts
--rw-rw-r-- 1 seejn seejn  44K Jun 23 06:06 build/orange_crab/software/bios/bios.bin
--rw-rw-r-- 1 seejn seejn 465K Jun 23 06:06 build/orange_crab/software/bios/bios.elf
--rw-rw-r-- 1 seejn seejn  34K Jun 23 06:06 build/orange_crab/software/include/generated/csr.h
--rw-rw-r-- 1 seejn seejn 1.8K Jun 23 06:06 build/orange_crab/software/include/generated/mem.h
--rw-rw-r-- 1 seejn seejn  360 Jun 23 05:48 build/orange_crab/software/include/generated/regions.ld
--rw-rw-r-- 1 seejn seejn 2.4K Jun 23 05:48 build/orange_crab/software/include/generated/variables.mak
+Create a fresh DFU image:
 
-## CSR map
+```bash
+cp -f \
+  build/orange_crab/gateware/orange_crab.bit \
+  build/orange_crab/gateware/orange_crab.bit.dfu
 
-#--------------------------------------------------------------------------------
-# Auto-generated by LiteX (97ed83b6d) on 2026-06-23 06:06:53
-#--------------------------------------------------------------------------------
-csr_base,ctrl,0xf0000000,,
-csr_base,ddrphy,0xf0000800,,
-csr_base,uart,0xf0001000,,
-csr_base,timer0,0xf0001800,,
-csr_base,i2c0,0xf0002000,,
-csr_base,identifier_mem,0xf0002800,,
-csr_base,leds,0xf0003000,,
-csr_base,sdcard,0xf0003800,,
-csr_base,sdram,0xf0004000,,
-csr_register,ctrl_reset,0xf0000000,1,rw
-csr_register,ctrl_scratch,0xf0000004,1,rw
-csr_register,ctrl_bus_errors,0xf0000008,1,ro
-csr_register,ddrphy_dly_sel,0xf0000800,1,rw
-csr_register,ddrphy_rdly_dq_rst,0xf0000804,1,rw
-csr_register,ddrphy_rdly_dq_inc,0xf0000808,1,rw
-csr_register,ddrphy_rdly_dq_bitslip_rst,0xf000080c,1,rw
-csr_register,ddrphy_rdly_dq_bitslip,0xf0000810,1,rw
-csr_register,ddrphy_burstdet_clr,0xf0000814,1,rw
-csr_register,ddrphy_burstdet_seen,0xf0000818,1,ro
-csr_register,uart_rxtx,0xf0001000,1,rw
-csr_register,uart_txfull,0xf0001004,1,ro
-csr_register,uart_rxempty,0xf0001008,1,ro
-csr_register,uart_ev_status,0xf000100c,1,ro
-csr_register,uart_ev_pending,0xf0001010,1,rw
-csr_register,uart_ev_enable,0xf0001014,1,rw
-csr_register,uart_txempty,0xf0001018,1,ro
-csr_register,uart_rxfull,0xf000101c,1,ro
-csr_register,timer0_load,0xf0001800,1,rw
-csr_register,timer0_reload,0xf0001804,1,rw
-csr_register,timer0_en,0xf0001808,1,rw
-csr_register,timer0_update_value,0xf000180c,1,rw
-csr_register,timer0_value,0xf0001810,1,ro
-csr_register,timer0_ev_status,0xf0001814,1,ro
-csr_register,timer0_ev_pending,0xf0001818,1,rw
-csr_register,timer0_ev_enable,0xf000181c,1,rw
-csr_register,i2c0_w,0xf0002000,1,rw
-csr_register,i2c0_r,0xf0002004,1,ro
-csr_register,leds_out,0xf0003000,1,rw
-csr_register,sdcard_phy_card_detect,0xf0003800,1,ro
-csr_register,sdcard_phy_clocker_divider,0xf0003804,1,rw
-csr_register,sdcard_phy_init_initialize,0xf0003808,1,rw
-csr_register,sdcard_phy_cmdr_timeout,0xf000380c,1,rw
-csr_register,sdcard_phy_dataw_status,0xf0003810,1,ro
-csr_register,sdcard_phy_datar_timeout,0xf0003814,1,rw
-csr_register,sdcard_phy_settings,0xf0003818,1,rw
-csr_register,sdcard_core_cmd_argument,0xf000381c,1,rw
-csr_register,sdcard_core_cmd_command,0xf0003820,1,rw
-csr_register,sdcard_core_cmd_send,0xf0003824,1,rw
-csr_register,sdcard_core_cmd_response,0xf0003828,4,ro
-csr_register,sdcard_core_cmd_event,0xf0003838,1,ro
-csr_register,sdcard_core_data_event,0xf000383c,1,ro
-csr_register,sdcard_core_block_length,0xf0003840,1,rw
-csr_register,sdcard_core_block_count,0xf0003844,1,rw
-csr_register,sdcard_block2mem_dma_base,0xf0003848,2,rw
-csr_register,sdcard_block2mem_dma_length,0xf0003850,1,rw
-csr_register,sdcard_block2mem_dma_enable,0xf0003854,1,rw
-csr_register,sdcard_block2mem_dma_done,0xf0003858,1,ro
-csr_register,sdcard_block2mem_dma_loop,0xf000385c,1,rw
-csr_register,sdcard_block2mem_dma_offset,0xf0003860,1,ro
-csr_register,sdcard_mem2block_dma_base,0xf0003864,2,rw
-csr_register,sdcard_mem2block_dma_length,0xf000386c,1,rw
-csr_register,sdcard_mem2block_dma_enable,0xf0003870,1,rw
-csr_register,sdcard_mem2block_dma_done,0xf0003874,1,ro
-csr_register,sdcard_mem2block_dma_loop,0xf0003878,1,rw
-csr_register,sdcard_mem2block_dma_offset,0xf000387c,1,ro
-csr_register,sdcard_ev_status,0xf0003880,1,ro
-csr_register,sdcard_ev_pending,0xf0003884,1,rw
-csr_register,sdcard_ev_enable,0xf0003888,1,rw
-csr_register,sdram_dfii_control,0xf0004000,1,rw
-csr_register,sdram_dfii_pi0_command,0xf0004004,1,rw
-csr_register,sdram_dfii_pi0_command_issue,0xf0004008,1,rw
-csr_register,sdram_dfii_pi0_address,0xf000400c,1,rw
-csr_register,sdram_dfii_pi0_baddress,0xf0004010,1,rw
-csr_register,sdram_dfii_pi0_wrdata,0xf0004014,2,rw
-csr_register,sdram_dfii_pi0_rddata,0xf000401c,2,ro
-csr_register,sdram_dfii_pi1_command,0xf0004024,1,rw
-csr_register,sdram_dfii_pi1_command_issue,0xf0004028,1,rw
-csr_register,sdram_dfii_pi1_address,0xf000402c,1,rw
-csr_register,sdram_dfii_pi1_baddress,0xf0004030,1,rw
-csr_register,sdram_dfii_pi1_wrdata,0xf0004034,2,rw
-csr_register,sdram_dfii_pi1_rddata,0xf000403c,2,ro
-constant,config_platform_name,gsd_orangecrab,,
-constant,config_clock_frequency,64000000,,
-constant,config_cpu_has_interrupt,None,,
-constant,config_cpu_reset_addr,0,,
-constant,config_cpu_count,1,,
-constant,config_cpu_isa,rv32i2p0_ma,,
-constant,config_cpu_mmu,sv32,,
-constant,config_cpu_dcache_size,4096,,
-constant,config_cpu_dcache_ways,1,,
-constant,config_cpu_dcache_block_size,64,,
-constant,config_cpu_icache_size,4096,,
-constant,config_cpu_icache_ways,1,,
-constant,config_cpu_icache_block_size,64,,
-constant,config_cpu_dtlb_size,4,,
-constant,config_cpu_dtlb_ways,4,,
-constant,config_cpu_itlb_size,4,,
-constant,config_cpu_itlb_ways,4,,
-constant,config_cpu_type_vexriscv_smp,None,,
-constant,config_cpu_variant_linux,None,,
-constant,config_cpu_family,riscv,,
-constant,config_cpu_name,vexriscv,,
-constant,config_cpu_human_name,VexRiscv SMP-LINUX,,
-constant,config_cpu_nop,nop,,
-constant,config_bios_no_build_time,None,,
-constant,config_identifier,LiteX SoC on OrangeCrab,,
-constant,config_csr_data_width,32,,
-constant,config_csr_alignment,32,,
-constant,config_csr_ordering_big,None,,
-constant,config_bus_standard,wishbone,,
-constant,config_bus_data_width,32,,
-constant,config_bus_address_width,32,,
-constant,config_bus_bursting,0,,
-constant,config_cpu_interrupts,4,,
-constant,sdcard_interrupt,3,,
-constant,timer0_interrupt,2,,
-constant,uart_interrupt,1,,
+dfu-suffix \
+  -v 1209 \
+  -p 5af0 \
+  -a \
+  build/orange_crab/gateware/orange_crab.bit.dfu
+```
 
-## Generated memory map
+Flash FPGA slot `alt 0`:
 
-//--------------------------------------------------------------------------------
-// Auto-generated by LiteX (97ed83b6d) on 2026-06-23 06:06:53
-//--------------------------------------------------------------------------------
-#ifndef __GENERATED_MEM_H
-#define __GENERATED_MEM_H
+```bash
+sudo dfu-util \
+  -a 0 \
+  -D build/orange_crab/gateware/orange_crab.bit.dfu
+```
 
-#ifndef OPENSBI_BASE
-#define OPENSBI_BASE 0x40f00000L
-#define OPENSBI_BASE_VA 0x40f00000L
-#define OPENSBI_SIZE 0x00080000
-#endif
+Do not flash the FPGA bitstream into `alt 1`.
 
-#ifndef PLIC_BASE
-#define PLIC_BASE 0xf0c00000L
-#define PLIC_BASE_VA 0xf0c00000L
-#define PLIC_SIZE 0x00400000
-#endif
+## Linux and storage
 
-#ifndef CLINT_BASE
-#define CLINT_BASE 0xf0010000L
-#define CLINT_BASE_VA 0xf0010000L
-#define CLINT_SIZE 0x00010000
-#endif
+Linux boots before login. The UART login prompt appears only after the kernel, `/sbin/init`, mounts, swap, syslog, and networking are running.
 
-#ifndef ROM_BASE
-#define ROM_BASE 0x00000000L
-#define ROM_BASE_VA 0x00000000L
-#define ROM_SIZE 0x00010000
-#endif
+```text
+/dev/mmcblk0p1   255 MiB   FAT boot partition
+/dev/mmcblk0p2   1.5 GiB   root filesystem mounted at /
+/dev/mmcblk0p3   4.0 GiB   swap
+/dev/mmcblk0p4   8.5 GiB   data filesystem mounted at /root/8gb
+```
 
-#ifndef SRAM_BASE
-#define SRAM_BASE 0x10000000L
-#define SRAM_BASE_VA 0x10000000L
-#define SRAM_SIZE 0x00001800
-#endif
+Observed free space:
 
-#ifndef MAIN_RAM_BASE
-#define MAIN_RAM_BASE 0x40000000L
-#define MAIN_RAM_BASE_VA 0x40000000L
-#define MAIN_RAM_SIZE 0x20000000
-#endif
+```text
+/           about 1.3 GiB free
+/root/8gb   about 8.0 GiB free
+```
 
-#ifndef CSR_BASE
-#define CSR_BASE 0xf0000000L
-#define CSR_BASE_VA 0xf0000000L
-#define CSR_SIZE 0x00010000
-#endif
+Check:
 
-#ifndef MEM_REGIONS
-#define MEM_REGIONS "OPENSBI   0x40f00000 0x80000 \nPLIC      0xf0c00000 0x400000 \nCLINT     0xf0010000 0x10000 \nROM       0x00000000 0x10000 \nSRAM      0x10000000 0x1800 \nMAIN_RAM  0x40000000 0x20000000 \nCSR       0xf0000000 0x10000 "
-#endif
+```sh
+df -h / /root/8gb
+mount | grep mmcblk0
+cat /proc/partitions
+```
 
-#ifndef MEM_REGIONS_DETAILS
-#define MEM_REGIONS_DETAILS "Region   Origin     End        Size \nOPENSBI  0x40f00000 0x40f7ffff 0x80000 \nPLIC     0xf0c00000 0xf0ffffff 0x400000 \nCLINT    0xf0010000 0xf001ffff 0x10000 \nROM      0x00000000 0x0000ffff 0x10000 \nSRAM     0x10000000 0x100017ff 0x1800 \nMAIN_RAM 0x40000000 0x5fffffff 0x20000000 \nCSR      0xf0000000 0xf000ffff 0x10000 "
-#endif
-#endif
+Use `/root/8gb` for transferred binaries, staging files, logs, and application data.
 
-## Generated variables
+## Next milestone
 
-TRIPLE=riscv64-linux-gnu
-CPU=vexriscv
-CPUFAMILY=riscv
-CPUFLAGS= -march=rv32i2p0_ma -mabi=ilp32 -D__vexriscv_smp__ -D__riscv_plic__
-CPUENDIANNESS=little
-CLANG=0
-CPU_DIRECTORY=/mnt/storage/ext/litex-src/litex/litex/soc/cores/cpu/vexriscv_smp
-SOC_DIRECTORY=/mnt/storage/ext/litex-src/litex/litex/soc
-export BUILDINC_DIRECTORY
-BUILDINC_DIRECTORY=/mnt/storage/see/1-c0d3/vhdl/lolv/build/orange_crab/software/include
-BIOS_DIRECTORY=/mnt/storage/ext/litex-src/litex/litex/soc/software/bios
-BIOS_CONSOLE_LITE=1
+During development, SPI ownership is manual:
 
-## Gateware summary
+- `spi_file_rx` owns OrangeCrab SPI only while it runs;
+- the OLED controller owns OrangeCrab SPI only while it runs;
+- only one is started at a time;
+- the finished layer-2 project will eventually be the sole normal owner.
 
-Baseline stock OrangeCrab Linux gateware built successfully.
-
-Key observed utilization from nextpnr:
-
-- TRELLIS_COMB: 17814 / 83640, about 21%
-- TRELLIS_FF: 8186 / 83640, about 9%
-- DP16KD: 29 / 208, about 13%
-- MULT18X18D: 4 / 156, about 2%
-- EHXPLLL: 2 / 4, about 50%
-- TRELLIS_IO: 73 / 365, about 20%
-
-Timing observed from nextpnr:
-
-- sys_clk target: 64.00 MHz
-- sys_clk achieved max frequency: about 65.83 MHz
-- sys_clk timing: PASS at 64.00 MHz
-
-Bitstream packaging:
-
-- ecppack used --compress
-- orange_crab.bit generated
-- orange_crab.bit.dfu generated
-- orange_crab.svf generated
-
-## ecppack command
-
-5:ecppack  --bootaddr 0    --compress  orange_crab.config --svf orange_crab.svf --bit orange_crab.bit
+The first project under `rust/spis/` will transfer arbitrary files from Jetson to `/root/8gb`, verify exact length and whole-file hash, and later support transactional executable replacement.
 
 
 
 ################################################################
-# SECTION 2: MODIFIED SCRIPTS / GATEWARE / CONFIGS
+# SECTION 2: LOLV MODIFIED SCRIPTS / GATEWARE / CONFIGS
 ################################################################
 
 ================================================================
 LOLV MODIFIED SCRIPTS / GATEWARE / CONFIGS
-ROOT: /mnt/storage/see/1-c0d3/vhdl/lolv
-GENERATED: 2026-07-04T12:59:30-07:00
+ROOT: /home/seejn/1tb/see/1-c0d3/vhdl/lolv
+GENERATED: 2026-07-16T18:49:40-07:00
 ================================================================
 
 
@@ -4474,652 +4588,93 @@ class Embedfire_rise_pro(Board):
 
 
 ////////////////////////////////////////////////////////////////
-// FILE: ./buildroot/board/litex_vexriscv/linux.config
-////////////////////////////////////////////////////////////////
-
-CONFIG_SECTION_MISMATCH_WARN_ONLY=y
-CONFIG_EXPERT=y
-
-# Architecture
-CONFIG_ARCH_DEFCONFIG="arch/riscv/configs/defconfig"
-CONFIG_NONPORTABLE=y
-CONFIG_ARCH_RV32I=y
-CONFIG_RISCV_ISA_M=y
-CONFIG_RISCV_ISA_A=y
-CONFIG_RISCV_ISA_C=n
-CONFIG_SIFIVE_PLIC=y
-CONFIG_FPU=n
-CONFIG_SMP=y
-CONFIG_STRICT_KERNEL_RWX=n
-CONFIG_EFI=n
-CONFIG_HVC_RISCV_SBI=y
-CONFIG_NONPORTABLE=y
-CONFIG_HZ_100=y
-
-CONFIG_BLK_DEV_INITRD=y
-CONFIG_INITRAMFS_SOURCE=""
-CONFIG_RD_GZIP=y
-CONFIG_RD_BZIP2=y
-CONFIG_RD_LZMA=y
-CONFIG_RD_XZ=y
-CONFIG_RD_LZO=y
-CONFIG_RD_LZ4=y
-
-# FPGA / SoC
-CONFIG_FPGA=y
-CONFIG_FPGA_MGR_LITEX=y
-CONFIG_LITEX_SOC_CONTROLLER=y
-CONFIG_LITEX_SUBREG_SIZE=4
-
-# Time
-CONFIG_PRINTK_TIME=y
-
-# Clocking
-CONFIG_COMMON_CLK=y
-CONFIG_COMMON_CLK_LITEX=y
-
-# Interrupts
-CONFIG_IRQCHIP=y
-CONFIG_OF_IRQ=y
-CONFIG_HANDLE_DOMAIN_IRQ=y
-CONFIG_LITEX_VEXRISCV_INTC=y
-
-# Ethernet
-CONFIG_NET=y
-CONFIG_PACKET=y
-CONFIG_PACKET_DIAG=y
-CONFIG_INET=y
-CONFIG_PPP=y
-CONFIG_PPP_ASYNC=y
-CONFIG_NETDEVICES=y
-CONFIG_NET_VENDOR_LITEX=y
-CONFIG_LITEX_LITEETH=y
-
-# Serial
-CONFIG_SERIAL_EARLYCON_RISCV_SBI=y
-CONFIG_SERIAL_LITEUART=y
-CONFIG_SERIAL_LITEUART_CONSOLE=y
-
-# Console / TTY
-# CONFIG_VT is not set
-# CONFIG_UNIX98_PTYS is not set
-# CONFIG_LEGACY_PTYS is not set
-# CONFIG_FRAMEBUFFER_CONSOLE is not set
-# CONFIG_LOGO is not set
-
-# GPIO
-CONFIG_GPIO_SYSFS=y
-CONFIG_GPIOLIB=y
-CONFIG_GPIO_LITEX=y
-
-# PWM
-CONFIG_PWM=y
-CONFIG_PWM_LITEX=y
-
-# SPI
-CONFIG_SPI=y
-CONFIG_SPI_LITESPI=y
-CONFIG_SPI_SPIDEV=y
-
-# I2C
-CONFIG_I2C=y
-CONFIG_I2C_LITEX=y
-CONFIG_I2C_CHARDEV=y
-
-# Hardware monitoring
-CONFIG_HWMON=y
-CONFIG_SENSORS_LITEX_HWMON=y
-
-# Framebuffer
-CONFIG_FB=y
-CONFIG_FB_SIMPLE=y
-CONFIG_DRM=y
-CONFIG_DRM_LITEVIDEO=y
-
-# Flash
-CONFIG_MTD=y
-CONFIG_MTD_SPI_NOR=y
-CONFIG_SPI_FLASH_LITEX=y
-
-# MMC
-CONFIG_MMC=y
-CONFIG_MMC_SPI=y
-CONFIG_MMC_LITEX=y
-
-CONFIG_EXT2_FS=y
-CONFIG_EXT3_FS=y
-CONFIG_EXT4_FS=y
-
-# .config in kernel
-CONFIG_IKCONFIG=y
-CONFIG_IKCONFIG_PROC=y
-
-# Filesystem
-CONFIG_FAT_FS=y
-CONFIG_MSDOS_FS=y
-CONFIG_MSDOS_PARTITION=y
-CONFIG_VFAT_FS=y
-CONFIG_FAT_DEFAULT_CODEPAGE=437
-CONFIG_FAT_DEFAULT_IOCHARSET="iso8859-1"
-CONFIG_NCPFS_SMALLDOS=y
-CONFIG_NLS=y
-CONFIG_NLS_CODEPAGE_437=y
-CONFIG_NLS_ASCII=y
-CONFIG_NLS_ISO8859_1=y
-CONFIG_TMPFS=y
-
-# Networking (added for a TUN-based bridge over the serial console link)
-CONFIG_UNIX=y
-CONFIG_TUN=y
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./buildroot/board/litex_vexriscv/linux-fpu.config
-////////////////////////////////////////////////////////////////
-
-CONFIG_FPU=y
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./buildroot/board/litex_vexriscv/linux-nfsroot.config
-////////////////////////////////////////////////////////////////
-
-CONFIG_IP_PNP=y
-# CONFIG_IP_PNP_DHCP is not set
-# CONFIG_IP_PNP_BOOTP is not set
-# CONFIG_IP_PNP_RARP is not set
-CONFIG_NETWORK_FILESYSTEMS=y
-CONFIG_NFS_FS=y
-CONFIG_NFS_V3=y
-CONFIG_ROOT_NFS=y
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./buildroot/board/litex_vexriscv/post-image.sh
-////////////////////////////////////////////////////////////////
-
-#!/bin/bash
-
-set -e
-
-BOARD_DIR="$(dirname $0)"
-GENIMAGE_CFG="${BOARD_DIR}/genimage.cfg"
-GENIMAGE_TMP="${BUILD_DIR}/genimage.tmp"
-
-LINUX_ON_VEXRISCV_OUT_DIR=$BR2_EXTERNAL_LITEX_VEXRISCV_PATH/../images
-DST_DTB=$LINUX_ON_VEXRISCV_OUT_DIR/rv32.dtb
-DST_OPENSBI=$LINUX_ON_VEXRISCV_OUT_DIR/opensbi.bin
-DST_IMAGE=$LINUX_ON_VEXRISCV_OUT_DIR/Image
-DST_ROOTFS_CPIO=$LINUX_ON_VEXRISCV_OUT_DIR/rootfs.cpio
-DST_ROOTFS_CPIO_GZ=$LINUX_ON_VEXRISCV_OUT_DIR/rootfs.cpio.gz
-DST_ROOTFS_EXT4=$LINUX_ON_VEXRISCV_OUT_DIR/rootfs.ext4
-
-rm -f $DST_OPENSBI $DST_ROOTFS_CPIO $DST_ROOTFS_CPIO_GZ $DST_ROOTFS_EXT4 $DST_IMAGE
-ln -s $BINARIES_DIR/fw_jump.bin $DST_OPENSBI
-ln -s $BINARIES_DIR/Image $DST_IMAGE
-ln -s $BINARIES_DIR/rootfs.cpio $DST_ROOTFS_CPIO
-if [ -e $BINARIES_DIR/rootfs.cpio.gz ]; then
-	ln -s $BINARIES_DIR/rootfs.cpio.gz $DST_ROOTFS_CPIO_GZ
-else
-	gzip -c $BINARIES_DIR/rootfs.cpio > $DST_ROOTFS_CPIO_GZ
-fi
-ln -s $BINARIES_DIR/rootfs.ext4 $DST_ROOTFS_EXT4
-
-if [ ! -e $DST_DTB ]; then
-	echo ""
-	echo "Warning: missing file $DST_DTB"
-	echo "a dummy file will be created"
-	echo "must be replaced manually by required rv32.dtb"
-	echo ""
-	touch $DST_OPENSBI
-fi
-
-if [ -e $DST_DTB ]; then
-	mkdir -p "${GENIMAGE_TMP}"
-	DTB_DTS=${GENIMAGE_TMP}/rv32.dts
-	dtc -I dtb -O dts -o $DTB_DTS $DST_DTB
-	INITRD_START=$(sed -n -E 's/.*linux,initrd-start[[:space:]]*=[[:space:]]*<([^>]+)>.*/\1/p' $DTB_DTS | head -n 1)
-	if [ -n "$INITRD_START" ]; then
-		INITRD_SIZE=$(stat -c%s $DST_ROOTFS_CPIO_GZ)
-		INITRD_END=$(printf "0x%x" $((INITRD_START + INITRD_SIZE)))
-		sed -i -E "s/(linux,initrd-end[[:space:]]*=[[:space:]]*<)0x[0-9a-fA-F]+(>)/\1${INITRD_END}\2/" $DTB_DTS
-		dtc -I dts -O dtb -o $DST_DTB $DTB_DTS
-	fi
-fi
-
-# Pass an empty rootpath. genimage makes a full copy of the given rootpath to
-# ${GENIMAGE_TMP}/root so passing TARGET_DIR would be a waste of time and disk
-# space. We don't rely on genimage to build the rootfs image, just to insert a
-# pre-built one in the disk image.
-
-trap 'rm -rf "${ROOTPATH_TMP}"' EXIT
-ROOTPATH_TMP="$(mktemp -d)"
-
-rm -rf "${GENIMAGE_TMP}"
-
-genimage \
-    --rootpath "${ROOTPATH_TMP}"   \
-    --tmppath "${GENIMAGE_TMP}"    \
-    --inputpath "${LINUX_ON_VEXRISCV_OUT_DIR}"  \
-    --outputpath "${LINUX_ON_VEXRISCV_OUT_DIR}" \
-    --config "${GENIMAGE_CFG}"
-
-exit $?
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./buildroot/board/litex_vexriscv_usbhost/linux.config
-////////////////////////////////////////////////////////////////
-
-CONFIG_SECTION_MISMATCH_WARN_ONLY=y
-
-# Architecture
-CONFIG_ARCH_DEFCONFIG="arch/riscv/configs/defconfig"
-CONFIG_NONPORTABLE=y
-CONFIG_ARCH_RV32I=y
-CONFIG_RISCV_ISA_M=y
-CONFIG_RISCV_ISA_A=y
-CONFIG_RISCV_ISA_C=n
-CONFIG_SIFIVE_PLIC=y
-CONFIG_FPU=n
-CONFIG_SMP=y
-CONFIG_STRICT_KERNEL_RWX=n
-CONFIG_EFI=n
-CONFIG_HVC_RISCV_SBI=y
-CONFIG_NONPORTABLE=y
-
-CONFIG_BLK_DEV_INITRD=y
-CONFIG_INITRAMFS_SOURCE=""
-CONFIG_RD_GZIP=y
-CONFIG_RD_BZIP2=y
-CONFIG_RD_LZMA=y
-CONFIG_RD_XZ=y
-CONFIG_RD_LZO=y
-CONFIG_RD_LZ4=y
-
-# FPGA / SoC
-CONFIG_FPGA=y
-CONFIG_FPGA_MGR_LITEX=y
-CONFIG_LITEX_SOC_CONTROLLER=y
-CONFIG_LITEX_SUBREG_SIZE=4
-
-# Time
-CONFIG_PRINTK_TIME=y
-
-# Clocking
-CONFIG_COMMON_CLK=y
-CONFIG_COMMON_CLK_LITEX=y
-
-# Interrupts
-CONFIG_IRQCHIP=y
-CONFIG_OF_IRQ=y
-CONFIG_HANDLE_DOMAIN_IRQ=y
-CONFIG_LITEX_VEXRISCV_INTC=y
-
-# Ethernet
-CONFIG_NET=y
-CONFIG_PACKET=y
-CONFIG_PACKET_DIAG=y
-CONFIG_INET=y
-CONFIG_PPP=y
-CONFIG_PPP_ASYNC=y
-CONFIG_NETDEVICES=y
-CONFIG_NET_VENDOR_LITEX=y
-CONFIG_LITEX_LITEETH=y
-
-# Serial
-CONFIG_SERIAL_EARLYCON_RISCV_SBI=y
-CONFIG_SERIAL_LITEUART=y
-CONFIG_SERIAL_LITEUART_CONSOLE=y
-
-# GPIO
-CONFIG_GPIO_SYSFS=y
-CONFIG_GPIOLIB=y
-CONFIG_GPIO_LITEX=y
-
-# PWM
-CONFIG_PWM=y
-CONFIG_PWM_LITEX=y
-
-# SPI
-CONFIG_SPI=y
-CONFIG_SPI_LITESPI=y
-CONFIG_SPI_SPIDEV=y
-
-# I2C
-CONFIG_I2C=y
-CONFIG_I2C_LITEX=y
-CONFIG_I2C_CHARDEV=y
-
-# Hardware monitoring
-CONFIG_HWMON=y
-CONFIG_SENSORS_LITEX_HWMON=y
-
-# Framebuffer
-CONFIG_FB=y
-CONFIG_FB_SIMPLE=y
-CONFIG_FRAMEBUFFER_CONSOLE=y
-CONFIG_FRAMEBUFFER_CONSOLE_DETECT_PRIMARY=y
-CONFIG_LOGO=y
-CONFIG_DRM=y
-CONFIG_DRM_LITEVIDEO=y
-
-# Flash
-CONFIG_MTD=y
-CONFIG_MTD_SPI_NOR=y
-CONFIG_SPI_FLASH_LITEX=y
-
-# MMC
-CONFIG_MMC=y
-CONFIG_MMC_SPI=y
-CONFIG_MMC_LITEX=y
-
-CONFIG_EXT2_FS=y
-CONFIG_EXT3_FS=y
-CONFIG_EXT4_FS=y
-
-# .config in kernel
-CONFIG_IKCONFIG=y
-CONFIG_IKCONFIG_PROC=y
-
-# Filesystem
-CONFIG_FAT_FS=y
-CONFIG_MSDOS_FS=y
-CONFIG_MSDOS_PARTITION=y
-CONFIG_VFAT_FS=y
-CONFIG_FAT_DEFAULT_CODEPAGE=437
-CONFIG_FAT_DEFAULT_IOCHARSET="iso8859-1"
-CONFIG_NCPFS_SMALLDOS=y
-CONFIG_NLS=y
-CONFIG_NLS_CODEPAGE_437=y
-CONFIG_NLS_ASCII=y
-CONFIG_NLS_ISO8859_1=y
-CONFIG_TMPFS=y
-
-# USB
-CONFIG_SOUND=y
-CONFIG_SND=y
-CONFIG_SND_USB_AUDIO=y
-CONFIG_USB_HIDDEV=y
-CONFIG_USB_LED_TRIG=y
-CONFIG_USB=y
-CONFIG_USB_ANNOUNCE_NEW_DEVICES=y
-CONFIG_USB_OHCI_HCD=y
-CONFIG_USB_OHCI_HCD_PLATFORM=y
-CONFIG_USB_STORAGE=y
-CONFIG_USB_SERIAL=y
-CONFIG_USB_SERIAL_FTDI_SIO=y
-CONFIG_USB_GADGET=y
-CONFIG_USB_AUDIO=y
-
-CONFIG_SCSI=y
-CONFIG_BLK_DEV_SD=y
-
-CONFIG_INPUT_MOUSEDEV=y
-CONFIG_INPUT_MOUSEDEV_PSAUX=y
-CONFIG_INPUT_EVDEV=y
-
-# USB wireless support
-CONFIG_WLAN=y
-CONFIG_WIRELESS=y
-CONFIG_USB_NET_DRIVERS=y
-CONFIG_WLAN_VENDOR_REALTEK=y
-CONFIG_RTL8XXXU=y
-CONFIG_MAC80211=y
-CONFIG_CRYPTO=y
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./buildroot/Config.in
-////////////////////////////////////////////////////////////////
-
-source "$BR2_EXTERNAL_LITEX_VEXRISCV_PATH/package/dhrystone-opt/Config.in"
-
-config BR2_PACKAGE_VEXRISCV_AES
-	bool "VexRiscv AES custom instruction"
-	help
-	  Enable VexRiscv AES custom instruction usage in openssl and dropbear
-
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./buildroot/configs/litex_vexriscv_defconfig
-////////////////////////////////////////////////////////////////
-
-# Target options
-BR2_riscv=y
-BR2_RISCV_32=y
-
-# Instruction Set Extensions
-BR2_riscv_custom=y
-# Backward compat (buildroot 2023.02.5 LTS).
-BR2_RISCV_ISA_CUSTOM_RVM=y
-BR2_RISCV_ISA_CUSTOM_RVA=y
-BR2_RISCV_ISA_CUSTOM_RVC=n
-# make.py enables FPU/hard-float options in the generated board defconfig.
-#BR2_RISCV_ISA_CUSTOM_RVF=y
-#BR2_RISCV_ISA_CUSTOM_RVD=y
-# Since commit cbd91e89e4 (2023-08-18 / 2023.11).
-BR2_RISCV_ISA_RVM=y
-BR2_RISCV_ISA_RVA=y
-BR2_RISCV_ISA_RVC=n
-# make.py enables FPU/hard-float options in the generated board defconfig.
-#BR2_RISCV_ISA_RVF=y
-#BR2_RISCV_ISA_RVD=y
-BR2_RISCV_ABI_ILP32=y
-
-# Patches
-BR2_GLOBAL_PATCH_DIR="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/patches"
-
-# GCC
-BR2_GCC_VERSION_13_X=y
-
-# System
-BR2_TARGET_GENERIC_GETTY=y
-BR2_TARGET_GENERIC_GETTY_PORT="console"
-
-# Filesystem
-BR2_TARGET_ROOTFS_CPIO=y
-BR2_TARGET_ROOTFS_CPIO_GZIP=y
-BR2_TARGET_ROOTFS_EXT2=y
-BR2_TARGET_ROOTFS_EXT2_4=y
-
-# Image
-BR2_ROOTFS_POST_IMAGE_SCRIPT="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/board/litex_vexriscv/post-image.sh"
-
-# Kernel header version
-BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_9=y
-
-# Kernel (mainline + patches set)
-BR2_LINUX_KERNEL=y
-BR2_LINUX_KERNEL_CUSTOM_VERSION=y
-BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.9"
-BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
-BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/board/litex_vexriscv/linux.config"
-BR2_LINUX_KERNEL_IMAGE=y
-
-# Bootloader (opensbi)
-BR2_TARGET_OPENSBI=y
-BR2_TARGET_OPENSBI_CUSTOM_GIT=y
-BR2_TARGET_OPENSBI_CUSTOM_REPO_URL="https://github.com/litex-hub/opensbi.git"
-BR2_TARGET_OPENSBI_CUSTOM_REPO_VERSION="1.3.1-linux-on-litex-vexriscv"
-BR2_TARGET_OPENSBI_PLAT="litex/vexriscv"
-BR2_TARGET_OPENSBI_INSTALL_DYNAMIC_IMG=n
-
-# Rootfs customisation
-BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/board/litex_vexriscv/rootfs_overlay"
-
-# Required tools to create the SD image
-BR2_PACKAGE_HOST_DOSFSTOOLS=y
-BR2_PACKAGE_HOST_GENIMAGE=y
-BR2_PACKAGE_HOST_MTOOLS=y
-
-# Extra packages
-BR2_PACKAGE_PPPD=y
-#BR2_PACKAGE_DHRYSTONE_OPT=y
-#BR2_PACKAGE_MICROPYTHON=y
-#BR2_PACKAGE_SPIDEV_TEST=y
-#BR2_PACKAGE_MTD=y
-#BR2_PACKAGE_MTD_JFFS_UTILS=y
-
-# Crypto
-#BR2_PACKAGE_LIBATOMIC_OPS_ARCH_SUPPORTS=y
-#BR2_PACKAGE_LIBATOMIC_OPS=y
-#BR2_PACKAGE_OPENSSL=y
-#BR2_PACKAGE_LIBRESSL=y
-#BR2_PACKAGE_LIBRESSL_BIN=y
-#BR2_PACKAGE_HAVEGED=y
-# make.py enables hardware AES options in the generated board defconfig.
-#BR2_PACKAGE_VEXRISCV_AES=y
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./buildroot/external.mk
-////////////////////////////////////////////////////////////////
-
-include $(sort $(wildcard $(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/package/*/*.mk))
-
-ifeq ($(BR2_PACKAGE_VEXRISCV_AES),y)
-LIBOPENSSL_CFLAGS+=-DVEXRISCV_AES
-LIBRESSL_CONF_OPTS+=-DVEXRISCV_AES=ON
-endif
-
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./buildroot/package/dhrystone-opt/Config.in
-////////////////////////////////////////////////////////////////
-
-config BR2_PACKAGE_DHRYSTONE_OPT
-	bool "dhrystone-opt"
-	help
-	  easy-to-use integer benchmark, with optimisations
-
-	  http://www.netlib.org/benchmark/dhry-c
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./buildroot/package/dhrystone-opt/dhrystone-opt.mk
-////////////////////////////////////////////////////////////////
-
-################################################################################
-#
-# dhrystone-opt
-#
-################################################################################
-
-DHRYSTONE_OPT_VERSION = 2
-DHRYSTONE_OPT_SOURCE = dhry-c
-DHRYSTONE_OPT_SITE = http://www.netlib.org/benchmark
-
-define DHRYSTONE_OPT_EXTRACT_CMDS
-	(cd $(@D) && $(SHELL) $(DHRYSTONE_OPT_DL_DIR)/$($(PKG)_SOURCE))
-	$(Q)cp $(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/package/dhrystone-opt/Makefile $(@D)/
-	$(Q)cp $(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/package/dhrystone-opt/*.S $(@D)/
-endef
-
-define DHRYSTONE_OPT_BUILD_CMDS
-	$(TARGET_CONFIGURE_OPTS) $(MAKE) -C $(@D)
-endef
-
-define DHRYSTONE_OPT_INSTALL_TARGET_CMDS
-	$(INSTALL) -D $(@D)/dhrystone $(TARGET_DIR)/usr/bin/dhrystone-opt
-endef
-
-$(eval $(generic-package))
-
-
-////////////////////////////////////////////////////////////////
 // FILE: ./cat_src.sh
 ////////////////////////////////////////////////////////////////
 
 #!/usr/bin/env bash
 set -euo pipefail
 
-# cat_src.sh
-#
-# Aggregate the lolv/ project into review-friendly text dumps.
-#
-# Run from:
-#   $WORKROOT/lolv
-#
-# Outputs:
-#   reports/cat_lolv_readmes.txt
-#   reports/cat_lolv_modified_scripts.txt
-#   reports/cat_lolv_all.txt
-
 ROOT="$(pwd)"
 OUT_DIR="./reports"
+OLED_ROOT="$(readlink -f ../../rust/oled)"
 
 DOCS_OUT="$OUT_DIR/cat_lolv_readmes.txt"
 SCRIPTS_OUT="$OUT_DIR/cat_lolv_modified_scripts.txt"
+OLED_OUT="$OUT_DIR/cat_rust_oled.txt"
 ALL_OUT="$OUT_DIR/cat_lolv_all.txt"
 
 mkdir -p "$OUT_DIR"
 
 : > "$DOCS_OUT"
 : > "$SCRIPTS_OUT"
+: > "$OLED_OUT"
 : > "$ALL_OUT"
 
 write_header() {
     local out_file="$1"
     local title="$2"
+    local root="$3"
 
     {
         echo "================================================================"
         echo "$title"
-        echo "ROOT: $ROOT"
+        echo "ROOT: $root"
         echo "GENERATED: $(date -Is)"
         echo "================================================================"
         echo
     } >> "$out_file"
 }
 
-append_file_hash() {
+append_hash_file() {
     local out_file="$1"
-    local file_path="$2"
+    local display_path="$2"
+    local real_path="$3"
 
     {
         echo
         echo "################################################################"
-        echo "# FILE: $file_path"
+        echo "# FILE: $display_path"
         echo "################################################################"
         echo
-        cat "$file_path"
+        cat "$real_path"
         echo
     } >> "$out_file"
 }
 
-append_file_slash() {
+append_slash_file() {
     local out_file="$1"
-    local file_path="$2"
+    local display_path="$2"
+    local real_path="$3"
 
     {
         echo
         echo "////////////////////////////////////////////////////////////////"
-        echo "// FILE: $file_path"
+        echo "// FILE: $display_path"
         echo "////////////////////////////////////////////////////////////////"
         echo
-        cat "$file_path"
+        cat "$real_path"
         echo
     } >> "$out_file"
 }
 
-write_header "$DOCS_OUT" "LOLV README / DOCS"
-write_header "$SCRIPTS_OUT" "LOLV MODIFIED SCRIPTS / GATEWARE / CONFIGS"
+write_header "$DOCS_OUT" "LOLV README / DOCS" "$ROOT"
+write_header "$SCRIPTS_OUT" "LOLV MODIFIED SCRIPTS / GATEWARE / CONFIGS" "$ROOT"
+write_header "$OLED_OUT" "RUST OLED WORKSPACE SOURCE / INFO" "$OLED_ROOT"
 
 echo "== collecting lolv README/docs =="
 
 find . \
   -path './.git' -prune -o \
   -path './build' -prune -o \
+  -path './buildroot' -prune -o \
   -path './images' -prune -o \
+  -path './target' -prune -o \
   -path './__pycache__' -prune -o \
-  -path './reports/cat_*' -prune -o \
+  -path './reports' -prune -o \
   -type f \( -name '*.md' -o -name '*.txt' \) -print \
 | sort \
-| while read -r doc_file; do
-    append_file_hash "$DOCS_OUT" "$doc_file"
+| while IFS= read -r file; do
+    append_hash_file "$DOCS_OUT" "$file" "$file"
 done
 
 echo "wrote $DOCS_OUT"
@@ -5127,37 +4682,69 @@ echo "wrote $DOCS_OUT"
 echo
 echo "== collecting lolv modified scripts/gateware/configs =="
 
-{
-  find . \
-    -path './.git' -prune -o \
-    -path './build' -prune -o \
-    -path './images' -prune -o \
-    -path './__pycache__' -prune -o \
-    -path './reports' -prune -o \
-    -type f \( \
+find . \
+  -path './.git' -prune -o \
+  -path './build' -prune -o \
+  -path './buildroot' -prune -o \
+  -path './images' -prune -o \
+  -path './target' -prune -o \
+  -path './__pycache__' -prune -o \
+  -path './reports' -prune -o \
+  -type f \( \
       -name '*.py' -o \
       -name '*.sh' -o \
+      -name '*.c' -o \
+      -name '*.h' -o \
       -name '*.vhd' -o \
       -name '*.vhdl' -o \
       -name '*.v' -o \
       -name '*.dts' -o \
       -name '*.dtsi' -o \
       -name '*.json' -o \
+      -name '*.toml' -o \
       -name '*.config' -o \
       -name '*defconfig' -o \
       -name 'Config.in' -o \
       -name '*.mk' \
-    \) -print
-} \
+    \) -print \
 | sort \
-| while read -r src_file; do
-    append_file_slash "$SCRIPTS_OUT" "$src_file"
+| while IFS= read -r file; do
+    append_slash_file "$SCRIPTS_OUT" "$file" "$file"
 done
 
 echo "wrote $SCRIPTS_OUT"
 
 echo
-echo "== writing combined lolv aggregate =="
+echo "== collecting ../../rust/oled source and info =="
+
+if [[ ! -d "$OLED_ROOT" ]]; then
+    echo "ERROR: missing OLED workspace: $OLED_ROOT" >&2
+    exit 1
+fi
+
+find "$OLED_ROOT" \
+  -path "$OLED_ROOT/.git" -prune -o \
+  -path '*/target' -prune -o \
+  -path '*/.git' -prune -o \
+  -path '*/node_modules' -prune -o \
+  -type f \( \
+      -path '*/src/*.rs' -o \
+      -path '*/src/**/*.rs' -o \
+      -path '*/info/*' -o \
+      -name 'Cargo.toml' -o \
+      -name 'Cargo.lock' -o \
+      -name 'rust-toolchain.toml' -o \
+      -name '*.json' -o \
+      -name 'README.md' -o \
+      -name '*.md' \
+    \) -print \
+| sort \
+| while IFS= read -r file; do
+    rel="${file#"$OLED_ROOT"/}"
+    append_slash_file "$OLED_OUT" "../../rust/oled/$rel" "$file"
+done
+
+echo "wrote $OLED_OUT"
 
 {
     echo "================================================================"
@@ -5167,36 +4754,556 @@ echo "== writing combined lolv aggregate =="
     echo "================================================================"
     echo
     echo "Included sections:"
-    echo "  1. README/docs"
-    echo "  2. Modified scripts/gateware/configs"
+    echo "  1. LOLV README/docs"
+    echo "  2. LOLV modified scripts/gateware/configs"
+    echo "  3. ../../rust/oled source, manifests, and info"
     echo
     echo "Generated component files:"
     echo "  $DOCS_OUT"
     echo "  $SCRIPTS_OUT"
+    echo "  $OLED_OUT"
     echo
     echo
     echo "################################################################"
-    echo "# SECTION 1: README / DOCS"
+    echo "# SECTION 1: LOLV README / DOCS"
     echo "################################################################"
     echo
     cat "$DOCS_OUT"
     echo
     echo
     echo "################################################################"
-    echo "# SECTION 2: MODIFIED SCRIPTS / GATEWARE / CONFIGS"
+    echo "# SECTION 2: LOLV MODIFIED SCRIPTS / GATEWARE / CONFIGS"
     echo "################################################################"
     echo
     cat "$SCRIPTS_OUT"
+    echo
+    echo
+    echo "################################################################"
+    echo "# SECTION 3: RUST OLED SOURCE / INFO"
+    echo "################################################################"
+    echo
+    cat "$OLED_OUT"
     echo
 } >> "$ALL_OUT"
 
 echo "wrote $ALL_OUT"
 
 echo
+echo "== aggregate sizes =="
+ls -lh "$DOCS_OUT" "$SCRIPTS_OUT" "$OLED_OUT" "$ALL_OUT"
+
+echo
+echo "== OLED files captured =="
+grep -c '^// FILE: ../../rust/oled/' "$OLED_OUT" || true
+
+echo
 echo "DONE."
-echo "Docs/readmes aggregate: $DOCS_OUT"
-echo "Modified scripts aggregate: $SCRIPTS_OUT"
-echo "Combined aggregate: $ALL_OUT"
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./cleanup_lolv_and_update_readmes_v1.sh
+////////////////////////////////////////////////////////////////
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+SELF="$(readlink -f "$0")"
+trap 'rc=$?; if [[ $rc -eq 0 ]]; then rm -f "$SELF"; fi' EXIT
+
+cd "$(dirname "$0")"
+
+if [[ ! -f soc_linux.py || ! -f README.md || ! -x cat_src.sh ]]; then
+    echo "ERROR: run this from the lolv repository root." >&2
+    exit 1
+fi
+
+echo "== remove obsolete untracked debug clutter =="
+
+rm -f \
+  build_and_flash.sh \
+  build_and_verify_spi_gateware.sh \
+  copy_dtb_via_sdcard.sh \
+  dump_orangecrab_pins_v2.sh \
+  patch_soc_linux_spi.sh \
+  spi_loopback_test.sh \
+  spi_read_from_board.sh \
+  reports/build_spi_mailbox_retry.log \
+  reports/build_spi_raw_counters.log \
+  reports/cat_rust_oled.txt \
+  reports/oled_test_128x64.pbm \
+  reports/oled_test_128x64.xbm \
+  tools/flash_spi_gateware.sh \
+  tools/rebuild_spi_gateware_bg.sh \
+  tools/send_spi_32bit_word.sh \
+  tools/send_spi_4byte.sh \
+  tools/send_spi_live.sh \
+  tools/send_spi_multibyte.sh \
+  tools/send_spi_test.sh \
+  tools/send_spi_test_beefcafe.sh \
+  tools/send_spi_test_clean.sh \
+  tools/send_spi_test_slow.sh \
+  tools/send_spi_test_veryslow.sh \
+  tools/spi_diag_master
+
+rm -f buildroot/board/litex_vexriscv/linux.config.bak.*
+rm -rf tools/test
+
+cat > spi_readme.md <<'MD'
+# OrangeCrab–Jetson SPI link
+
+## Working directories
+
+All project work starts from `lolv/`.
+
+@@@bash
+export EXTERNAL="$HOME/1tb/ext"
+export WORKROOT="$HOME/1tb/see/1-c0d3/vhdl"
+export WORKDIR="$WORKROOT/lolv"
+export RUSTROOT="$WORKDIR/../../rust"
+export OLED_DIR="$RUSTROOT/oled"
+export SPIS_DIR="$RUSTROOT/spis"
+
+cd "$WORKDIR"
+source "$EXTERNAL/fpga-env.sh"
+hash -r
+@@@
+
+`rust/spis/` is a parent directory containing independent SPI-related projects. It is not itself a Cargo project or workspace.
+
+Current/future locations:
+
+@@@text
+$WORKDIR/../../rust/oled/
+    OLED-specific project
+
+$WORKDIR/../../rust/spis/basic_spi_io/
+    first generic SPI file-transfer project
+
+$WORKDIR/../../rust/spis/<future-layer2-project>/
+    future project-specific SPI control/data service
+@@@
+
+## Proven hardware
+
+@@@text
+OrangeCrab: 85F rev 0.2
+Jetson:     Orin Nano
+SPI mode:   0
+Jetson:     master, /dev/spidev0.0
+OrangeCrab: slave, LiteX SPISlave
+sys_clk:    64 MHz
+@@@
+
+Correct wiring:
+
+@@@text
+Jetson pin 24 CS0  -> OrangeCrab GPIO:0  / N17 / cs_n
+Jetson pin 23 SCK  -> OrangeCrab GPIO:16 / N16 / clk
+Jetson pin 19 MOSI -> OrangeCrab GPIO:15 / R17 / mosi
+Jetson pin 21 MISO <- OrangeCrab GPIO:14 / N15 / miso
+Jetson pin 25 GND  -> OrangeCrab GND
+@@@
+
+The original receive failure was caused by SCK and MOSI being physically crossed.
+
+## Gateware interface
+
+`soc_linux.py` contains `SpiSlaveExt`, which wraps LiteX `SPISlave` with:
+
+- a stable one-entry completed-RX mailbox;
+- ACK and clear controls;
+- transaction count;
+- stable RX data and bit length;
+- direct raw state;
+- independent CS/SCK/MOSI counters.
+
+The current hardware word is 32 bits. Larger software messages are fragmented above this layer.
+
+@@@text
+spi_ext base = 0xf0005000
+
+0xf0005000  rx_data                         RO
+0xf0005004  tx_data                         RW
+0xf0005008  rx_length                       RO
+0xf000500c  status                          RO
+0xf0005010  transaction_count               RO
+0xf0005014  control                         RW
+0xf0005018  raw_mosi                        RO
+0xf000501c  raw_length                      RO
+0xf0005020  raw_done                        RO
+0xf0005024  raw_pins                        RO
+0xf0005028  raw_cs_assert_count             RO
+0xf000502c  raw_cs_deassert_count           RO
+0xf0005030  raw_sck_rise_count              RO
+0xf0005034  raw_sck_fall_count              RO
+0xf0005038  raw_mosi_high_on_sck_rise       RO
+0xf000503c  raw_mosi_low_on_sck_rise        RO
+@@@
+
+Control:
+
+@@@text
+bit 0: ACK/drop current RX mailbox
+bit 1: clear mailbox, overrun, transaction count, and raw counters
+@@@
+
+Status:
+
+@@@text
+bit 0: RX valid
+bit 1: SPI busy
+bit 2: RX overrun
+@@@
+
+## Proven transactions
+
+Jetson sent:
+
+@@@text
+ff aa 55 81
+@@@
+
+OrangeCrab observed:
+
+@@@text
+rx_data                        0xFFAA5581
+rx_length                      0x00000020
+transaction_count              0x00000001
+raw_cs_assert_count            0x00000001
+raw_cs_deassert_count          0x00000001
+raw_sck_rise_count             0x00000020
+raw_sck_fall_count             0x00000020
+raw_mosi_high_on_sck_rise      0x00000012
+raw_mosi_low_on_sck_rise       0x0000000E
+@@@
+
+That pattern contains exactly 18 one-bits and 14 zero-bits. MISO full-duplex transfer also passed with a known 32-bit `tx_data` pattern.
+
+## Retained diagnostics
+
+@@@text
+tools/spi_diag_master.c
+tools/read_spi_mailbox.sh
+tools/spi_miso_jetson.sh
+tools/spi_miso_orangecrab.sh
+@@@
+
+Build the reproducible Jetson diagnostic binary when needed:
+
+@@@bash
+cd "$WORKDIR"
+
+cc -O2 -Wall -Wextra -Werror \
+  tools/spi_diag_master.c \
+  -o tools/spi_diag_master
+@@@
+
+Remove the compiled binary after testing:
+
+@@@bash
+rm -f "$WORKDIR/tools/spi_diag_master"
+@@@
+
+## Build and flash
+
+@@@bash
+cd "$WORKDIR"
+source "$EXTERNAL/fpga-env.sh"
+hash -r
+
+./make.py \
+  --board=orange_crab \
+  --device=85F \
+  --revision=0.2 \
+  --cpu-count=1 \
+  --rootfs=mmcblk0p2 \
+  --build \
+  -- \
+  --sdram-device=MT41K256M16
+@@@
+
+A placement timing estimate can fail before the final routed timing passes. Use the final routed timing report.
+
+Create a fresh DFU image:
+
+@@@bash
+cp -f \
+  build/orange_crab/gateware/orange_crab.bit \
+  build/orange_crab/gateware/orange_crab.bit.dfu
+
+dfu-suffix \
+  -v 1209 \
+  -p 5af0 \
+  -a \
+  build/orange_crab/gateware/orange_crab.bit.dfu
+@@@
+
+Flash FPGA slot `alt 0`:
+
+@@@bash
+sudo dfu-util \
+  -a 0 \
+  -D build/orange_crab/gateware/orange_crab.bit.dfu
+@@@
+
+Do not flash the FPGA bitstream into `alt 1`.
+
+## Linux and storage
+
+Linux boots before login. The UART login prompt appears only after the kernel, `/sbin/init`, mounts, swap, syslog, and networking are running.
+
+@@@text
+/dev/mmcblk0p1   255 MiB   FAT boot partition
+/dev/mmcblk0p2   1.5 GiB   root filesystem mounted at /
+/dev/mmcblk0p3   4.0 GiB   swap
+/dev/mmcblk0p4   8.5 GiB   data filesystem mounted at /root/8gb
+@@@
+
+Observed free space:
+
+@@@text
+/           about 1.3 GiB free
+/root/8gb   about 8.0 GiB free
+@@@
+
+Check:
+
+@@@sh
+df -h / /root/8gb
+mount | grep mmcblk0
+cat /proc/partitions
+@@@
+
+Use `/root/8gb` for transferred binaries, staging files, logs, and application data.
+
+## Next milestone
+
+During development, SPI ownership is manual:
+
+- `spi_file_rx` owns OrangeCrab SPI only while it runs;
+- the OLED controller owns OrangeCrab SPI only while it runs;
+- only one is started at a time;
+- the finished layer-2 project will eventually be the sole normal owner.
+
+The first project under `rust/spis/` will transfer arbitrary files from Jetson to `/root/8gb`, verify exact length and whole-file hash, and later support transactional executable replacement.
+MD
+
+python3 - <<'PY'
+from pathlib import Path
+
+for p in [Path("spi_readme.md")]:
+    p.write_text(p.read_text().replace("@@@", "`" * 3))
+
+def section(path, start, end, body):
+    p = Path(path)
+    s = p.read_text()
+    block = start + "\n" + body.strip() + "\n" + end
+    if start in s and end in s:
+        a, rest = s.split(start, 1)
+        _, b = rest.split(end, 1)
+        s = a.rstrip() + "\n\n" + block + b
+    else:
+        s = block + "\n\n" + s
+    p.write_text(s)
+
+section(
+    "README.md",
+    "<!-- LOLV_LOCAL_STATUS_START -->",
+    "<!-- LOLV_LOCAL_STATUS_END -->",
+    r'''
+## Local OrangeCrab status
+
+This checkout is the OrangeCrab Linux-on-LiteX integration tree.
+
+Current proven additions:
+
+- custom VHDL header probe exposed through LiteX CSRs;
+- Buildroot Linux boot from SD;
+- Jetson-to-OrangeCrab SPI slave gateware;
+- stable completed-transaction mailbox;
+- raw CS/SCK/MOSI diagnostic counters;
+- verified mode-0 MOSI and MISO transfers;
+- verified 32-bit receive pattern `0xFFAA5581`;
+- corrected physical SCK/MOSI crossover.
+
+Local documentation:
+
+```text
+install_readme.md     toolchain, FPGA/Linux build, SD install, boot
+modify_readme.md      custom gateware and CSR history
+i2c_oled_readme.md    OLED/I2C work
+spi_readme.md         current SPI interface and Rust transition
+basic_readme.md       deterministic quotient/VHDL checklist
+```
+
+Working paths:
+
+```bash
+export EXTERNAL="$HOME/1tb/ext"
+export WORKROOT="$HOME/1tb/see/1-c0d3/vhdl"
+export WORKDIR="$WORKROOT/lolv"
+export RUSTROOT="$WORKDIR/../../rust"
+```
+
+Rust siblings:
+
+```text
+$WORKDIR/../../rust/oled/
+$WORKDIR/../../rust/spis/
+```
+
+`rust/spis/` contains independent projects; it is not one Cargo project.
+''',
+)
+
+section(
+    "install_readme.md",
+    "<!-- LOLV_CURRENT_RUNTIME_START -->",
+    "<!-- LOLV_CURRENT_RUNTIME_END -->",
+    r'''
+## Current Linux runtime and SD layout
+
+The Buildroot login prompt does not start Linux. Linux has already booted before the prompt appears:
+
+```text
+LiteX BIOS
+-> OpenSBI
+-> Linux 6.9
+-> /sbin/init
+-> filesystem mounts
+-> swap
+-> syslog/network
+-> login prompt
+```
+
+Current SD layout:
+
+```text
+/dev/mmcblk0p1   255 MiB   FAT boot
+/dev/mmcblk0p2   1.5 GiB   root filesystem mounted at /
+/dev/mmcblk0p3   4.0 GiB   swap
+/dev/mmcblk0p4   8.5 GiB   data partition mounted at /root/8gb
+```
+
+Observed free space:
+
+```text
+/           about 1.3 GiB free
+/root/8gb   about 8.0 GiB free
+```
+
+Target checks:
+
+```sh
+df -h / /root/8gb
+mount | grep mmcblk0
+cat /proc/partitions
+fdisk -l /dev/mmcblk0 2>/dev/null
+```
+
+Use `/root/8gb` for deployed binaries, staging files, logs, and application data.
+''',
+)
+
+section(
+    "modify_readme.md",
+    "<!-- LOLV_SPI_MILESTONE_START -->",
+    "<!-- LOLV_SPI_MILESTONE_END -->",
+    r'''
+## Proven external SPI milestone
+
+`soc_linux.py` now includes `SpiSlaveExt`:
+
+```text
+Jetson /dev/spidev0.0
+-> SPI mode 0
+-> OrangeCrab ECP5 pins
+-> LiteX SPISlave
+-> stable Linux mailbox
+-> raw edge counters
+-> Linux devmem / future Rust MMIO
+```
+
+Correct pins:
+
+```text
+CS0  -> GPIO:0  / N17
+SCK  -> GPIO:16 / N16
+MOSI -> GPIO:15 / R17
+MISO <- GPIO:14 / N15
+```
+
+The original fault was a physical SCK/MOSI crossover. After correction, `ff aa 55 81` produced:
+
+```text
+rx_data                        0xFFAA5581
+rx_length                      0x00000020
+raw_sck_rise_count             0x00000020
+raw_sck_fall_count             0x00000020
+raw_mosi_high_on_sck_rise      0x00000012
+raw_mosi_low_on_sck_rise       0x0000000E
+```
+
+MISO full-duplex transfer also passed. See `spi_readme.md`.
+''',
+)
+
+p = Path("i2c_oled_readme.md")
+s = p.read_text()
+s = s.replace(
+    'export I2CSDIR="$WORKROOT/i2cs"',
+    'export RUSTROOT="$WORKDIR/../../rust"\nexport OLED_DIR="$RUSTROOT/oled"\nexport SPIS_DIR="$RUSTROOT/spis"',
+)
+marker = "<!-- LOLV_RUST_PATHS_START -->"
+if marker not in s:
+    insert = '''<!-- LOLV_RUST_PATHS_START -->
+## Rust sibling projects
+
+From `lolv/`:
+
+```text
+$WORKDIR/../../rust/oled/
+    OLED-specific project
+
+$WORKDIR/../../rust/spis/
+    parent directory containing independent SPI projects
+```
+
+`rust/spis/` is not itself a Cargo project.
+<!-- LOLV_RUST_PATHS_END -->
+
+'''
+    s = insert + s
+p.write_text(s)
+PY
+
+echo
+echo "== regenerate source/document aggregates =="
+./cat_src.sh
+
+echo
+echo "== final status =="
+git status --short
+
+echo
+echo "== retained final SPI helpers =="
+ls -lh \
+  tools/spi_diag_master.c \
+  tools/read_spi_mailbox.sh \
+  tools/spi_miso_jetson.sh \
+  tools/spi_miso_orangecrab.sh
+
+echo
+echo "== current README set =="
+ls -lh \
+  README.md \
+  install_readme.md \
+  modify_readme.md \
+  i2c_oled_readme.md \
+  spi_readme.md
+
+echo
+echo "DONE. Installer will now delete itself."
 
 
 ////////////////////////////////////////////////////////////////
@@ -5304,62 +5411,6 @@ cargo run -p axum_serve -- \
   --i2c-bus "${I2C_BUS:-/dev/i2c-0}" \
   --i2c-addr "${I2C_ADDR:-0x3c}" \
   --static-dir "$OLED_DIR/axum_serve/static"
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./fix_toolchain_pin.sh
-////////////////////////////////////////////////////////////////
-
-#!/bin/bash
-# Run from lolv/. Fixes the broken rust-toolchain.toml by pinning to the
-# actual dated nightly snapshot (read from rustc itself), not a guess.
-
-WORKDIR="/mnt/storage/see/1-c0d3/vhdl/lolv"
-OLED_DIR="$WORKDIR/../../rust/oled"
-
-echo "== reading the real nightly commit date from rustc =="
-VERBOSE=$(rustc +nightly --version --verbose)
-echo "$VERBOSE"
-NIGHTLY_DATE=$(echo "$VERBOSE" | grep '^commit-date:' | awk '{print $2}')
-echo "  parsed date: $NIGHTLY_DATE"
-echo
-
-if [ -z "$NIGHTLY_DATE" ]; then
-  echo "ABORTING: couldn't parse a commit-date from rustc output above."
-else
-  echo "== installing the exact dated snapshot nightly-$NIGHTLY_DATE =="
-  rustup toolchain install "nightly-$NIGHTLY_DATE"
-  rustup component add rust-src --toolchain "nightly-$NIGHTLY_DATE"
-  echo
-
-  echo "== rewriting rust-toolchain.toml correctly =="
-  cat > "$OLED_DIR/rust-toolchain.toml" << EOF
-[toolchain]
-channel = "nightly-$NIGHTLY_DATE"
-components = ["rust-src"]
-EOF
-  cat "$OLED_DIR/rust-toolchain.toml"
-  echo
-
-  echo "== confirming rustup now resolves this override correctly =="
-  cd "$OLED_DIR"
-  rustup show active-toolchain
-  echo
-
-  echo "== retrying both builds =="
-  echo "-- jetson native --"
-  cargo build --release -p serial_bridge
-  echo "  jetson status: $?"
-  echo
-
-  echo "-- board rv32ima (still needs explicit +nightly for -Z flags) --"
-  cargo +nightly build -Z build-std=std,panic_abort -Z json-target-spec \
-    --target rv32ima-buildroot.json --release -p serial_bridge
-  echo "  board status: $?"
-fi
-
-echo
-echo "done"
 
 
 ////////////////////////////////////////////////////////////////
@@ -6095,11 +6146,11 @@ import subprocess
 from migen import *
 
 from litex.soc.interconnect.csr import *
-from litex.build.generic_platform import Pins, IOStandard, Misc
+from litex.build.generic_platform import Pins, Subsignal, IOStandard, Misc
 
 from litex.soc.cores.cpu.vexriscv_smp import VexRiscvSMP
 from litex.soc.cores.gpio    import GPIOOut, GPIOIn
-from litex.soc.cores.spi     import SPIMaster
+from litex.soc.cores.spi     import SPIMaster, SPISlave
 from litex.soc.cores.bitbang import I2CMaster
 from litex.soc.cores.pwm     import PWM
 
@@ -6134,6 +6185,214 @@ class HeaderProbe(Module, AutoCSR):
         )
 
         self.comb += self.pins_in.status.eq(pins_in)
+
+
+# SPI Slave Ext CSR wrapper -------------------------------------------------------------------------
+#
+# Thin CSR shim around LiteX's existing litex.soc.cores.spi.SPISlave core --
+# same pattern as HeaderProbe, just wrapping an already-written module
+# instead of custom VHDL. No IRQ for v1 (kept boring per basic_readme.md);
+# Linux polls `done`/`length` via CSR.
+
+class SpiSlaveExt(Module, AutoCSR):
+    # Linux-visible SPI slave with a stable one-entry receive mailbox.
+    #
+    # LiteX SPISlave performs the electrical shifting. This wrapper
+    # snapshots each completed transaction into registers that remain
+    # stable until Linux explicitly acknowledges them.
+
+    def __init__(self, pads, data_width):
+        # Use LiteX SPISlave directly. It already synchronizes clk, cs_n,
+        # and mosi internally. The previous external debounce filter was
+        # inconclusive and made the raw baseline harder to interpret.
+        self.submodules.spi = spi = SPISlave(pads, data_width=data_width)
+
+        self.rx_data = CSRStatus(
+            data_width,
+            description="Completed MOSI transaction snapshot; stable while rx_valid=1.",
+        )
+        self.tx_data = CSRStorage(
+            data_width,
+            description="Data shifted out on MISO during subsequent SPI transactions.",
+        )
+        self.rx_length = CSRStatus(
+            8,
+            description="Bit length captured with rx_data.",
+        )
+        self.status = CSRStatus(
+            4,
+            description="bit0=rx_valid, bit1=spi_busy, bit2=rx_overrun, bit3=reserved.",
+        )
+        self.transaction_count = CSRStatus(
+            32,
+            description="Completed SPI transactions since clear/reset.",
+        )
+        self.control = CSRStorage(
+            2,
+            description=(
+                "Write bit0=1 to ACK/drop current RX mailbox; "
+                "write bit1=1 to clear mailbox, overrun, and transaction counter."
+            ),
+        )
+
+        # Raw/live diagnostic view.
+        self.raw_mosi = CSRStatus(
+            data_width,
+            description="Live LiteX SPISlave MOSI shift register.",
+        )
+        self.raw_length = CSRStatus(
+            8,
+            description="Live LiteX SPISlave bit counter.",
+        )
+        self.raw_done = CSRStatus(
+            1,
+            description="Live LiteX SPISlave done/idle signal.",
+        )
+        self.raw_pins = CSRStatus(
+            4,
+            description="Physical pins: bit0=cs_n bit1=clk bit2=mosi bit3=miso.",
+        )
+
+        self.raw_cs_assert_count = CSRStatus(32, description="Synchronized CS_N falling-edge count.")
+        self.raw_cs_deassert_count = CSRStatus(32, description="Synchronized CS_N rising-edge count.")
+        self.raw_sck_rise_count = CSRStatus(32, description="Synchronized raw SCK rising-edge count.")
+        self.raw_sck_fall_count = CSRStatus(32, description="Synchronized raw SCK falling-edge count.")
+        self.raw_mosi_high_on_sck_rise = CSRStatus(32, description="SCK rises with MOSI high.")
+        self.raw_mosi_low_on_sck_rise = CSRStatus(32, description="SCK rises with MOSI low.")
+
+        rx_data_reg = Signal(data_width, reset=0)
+        rx_length_reg = Signal(8, reset=0)
+        rx_valid = Signal(reset=0)
+        rx_overrun = Signal(reset=0)
+        transaction_count_reg = Signal(32, reset=0)
+
+        raw_cs_meta = Signal(reset=1)
+        raw_cs_sync = Signal(reset=1)
+        raw_cs_prev = Signal(reset=1)
+        raw_sck_meta = Signal(reset=0)
+        raw_sck_sync = Signal(reset=0)
+        raw_sck_prev = Signal(reset=0)
+        raw_mosi_meta = Signal(reset=0)
+        raw_mosi_sync = Signal(reset=0)
+
+        raw_cs_assert_count_reg = Signal(32, reset=0)
+        raw_cs_deassert_count_reg = Signal(32, reset=0)
+        raw_sck_rise_count_reg = Signal(32, reset=0)
+        raw_sck_fall_count_reg = Signal(32, reset=0)
+        raw_mosi_high_count_reg = Signal(32, reset=0)
+        raw_mosi_low_count_reg = Signal(32, reset=0)
+
+        raw_cs_assert = Signal()
+        raw_cs_deassert = Signal()
+        raw_sck_rise = Signal()
+        raw_sck_fall = Signal()
+
+        done_d = Signal(reset=1)
+        transaction_complete = Signal()
+        ack_pulse = Signal()
+        clear_pulse = Signal()
+
+        self.comb += [
+            spi.miso.eq(self.tx_data.storage),
+
+            transaction_complete.eq(~done_d & spi.done),
+            ack_pulse.eq(self.control.re & self.control.storage[0]),
+            clear_pulse.eq(self.control.re & self.control.storage[1]),
+
+            self.rx_data.status.eq(rx_data_reg),
+            self.rx_length.status.eq(rx_length_reg),
+            self.transaction_count.status.eq(transaction_count_reg),
+            self.status.status.eq(Cat(
+                rx_valid,
+                ~spi.done,
+                rx_overrun,
+                0,
+            )),
+
+            self.raw_mosi.status.eq(spi.mosi),
+            self.raw_length.status.eq(spi.length),
+            self.raw_done.status.eq(spi.done),
+            self.raw_pins.status.eq(Cat(
+                pads.cs_n,
+                pads.clk,
+                pads.mosi,
+                pads.miso,
+            )),
+
+            raw_cs_assert.eq(raw_cs_prev & ~raw_cs_sync),
+            raw_cs_deassert.eq(~raw_cs_prev & raw_cs_sync),
+            raw_sck_rise.eq(~raw_sck_prev & raw_sck_sync),
+            raw_sck_fall.eq(raw_sck_prev & ~raw_sck_sync),
+
+            self.raw_cs_assert_count.status.eq(raw_cs_assert_count_reg),
+            self.raw_cs_deassert_count.status.eq(raw_cs_deassert_count_reg),
+            self.raw_sck_rise_count.status.eq(raw_sck_rise_count_reg),
+            self.raw_sck_fall_count.status.eq(raw_sck_fall_count_reg),
+            self.raw_mosi_high_on_sck_rise.status.eq(raw_mosi_high_count_reg),
+            self.raw_mosi_low_on_sck_rise.status.eq(raw_mosi_low_count_reg),
+        ]
+
+        self.sync += [
+            done_d.eq(spi.done),
+
+            raw_cs_meta.eq(pads.cs_n),
+            raw_cs_sync.eq(raw_cs_meta),
+            raw_cs_prev.eq(raw_cs_sync),
+
+            raw_sck_meta.eq(pads.clk),
+            raw_sck_sync.eq(raw_sck_meta),
+            raw_sck_prev.eq(raw_sck_sync),
+
+            raw_mosi_meta.eq(pads.mosi),
+            raw_mosi_sync.eq(raw_mosi_meta),
+
+            If(clear_pulse,
+                rx_data_reg.eq(0),
+                rx_length_reg.eq(0),
+                rx_valid.eq(0),
+                rx_overrun.eq(0),
+                transaction_count_reg.eq(0),
+                raw_cs_assert_count_reg.eq(0),
+                raw_cs_deassert_count_reg.eq(0),
+                raw_sck_rise_count_reg.eq(0),
+                raw_sck_fall_count_reg.eq(0),
+                raw_mosi_high_count_reg.eq(0),
+                raw_mosi_low_count_reg.eq(0),
+            ).Else(
+                If(raw_cs_assert,
+                    raw_cs_assert_count_reg.eq(raw_cs_assert_count_reg + 1),
+                ),
+                If(raw_cs_deassert,
+                    raw_cs_deassert_count_reg.eq(raw_cs_deassert_count_reg + 1),
+                ),
+                If(raw_sck_rise,
+                    raw_sck_rise_count_reg.eq(raw_sck_rise_count_reg + 1),
+                    If(raw_mosi_sync,
+                        raw_mosi_high_count_reg.eq(raw_mosi_high_count_reg + 1),
+                    ).Else(
+                        raw_mosi_low_count_reg.eq(raw_mosi_low_count_reg + 1),
+                    ),
+                ),
+                If(raw_sck_fall,
+                    raw_sck_fall_count_reg.eq(raw_sck_fall_count_reg + 1),
+                ),
+                If(ack_pulse,
+                    rx_valid.eq(0),
+                ),
+
+                If(transaction_complete,
+                    transaction_count_reg.eq(transaction_count_reg + 1),
+
+                    If(rx_valid & ~ack_pulse,
+                        rx_overrun.eq(1),
+                    ).Else(
+                        rx_data_reg.eq(spi.mosi),
+                        rx_length_reg.eq(spi.length),
+                        rx_valid.eq(1),
+                    ),
+                ),
+            ),
+        ]
 
 
 # SoCLinux -----------------------------------------------------------------------------------------
@@ -6205,6 +6464,32 @@ def SoCLinux(soc_cls, **kwargs):
             #
             # GPIO:2/GPIO:3 are left alone because this SoC already has i2c0.
             # GPIO:0/GPIO:14/GPIO:15/GPIO:16 are left alone for possible SPI-style use.
+
+            # SPI Slave (Jetson<->OrangeCrab realtime link) -------------------------------------
+            #
+            # Dedicated pins reserved above:
+            #   GPIO:0  (N17) -> cs_n
+            #   GPIO:14 (N15) -> miso
+            #   GPIO:15 (R17) -> mosi
+            #   GPIO:16 (N16) -> clk
+            #
+            # 256-byte (2048-bit) transactions.
+            self.platform.add_extension([
+                ("spi_ext", 0,
+                    Subsignal("cs_n", Pins("N17"), Misc("PULLMODE=UP")),
+                    Subsignal("clk",  Pins("N16")),
+                    Subsignal("mosi", Pins("R17"), Misc("PULLMODE=UP")),
+                    Subsignal("miso", Pins("N15"), Misc("PULLMODE=UP")),
+                    IOStandard("LVCMOS33"),
+                    Misc("SLEWRATE=SLOW"),
+                )
+            ])
+            self.submodules.spi_ext = SpiSlaveExt(
+                pads       = self.platform.request("spi_ext", 0),
+                data_width = 32,  # shrunk from 2048 -- 256B framing now happens in software
+            )
+            # Keep spi_ext away from CSR bank 0 (ctrl) and bank 9 (header_probe).
+            self.csr.add("spi_ext", n=10)
 
 
         # RGB Led ----------------------------------------------------------------------------------
@@ -7197,6 +7482,45 @@ echo "  python3 ./tools/run_luma_oled_test.py --port 0 --address 0x3c --device s
 
 
 ////////////////////////////////////////////////////////////////
+// FILE: ./tools/read_spi_mailbox.sh
+////////////////////////////////////////////////////////////////
+
+#!/usr/bin/env sh
+set -eu
+
+read_reg() {
+    name="$1"
+    addr="$2"
+    printf '%-20s ' "$name"
+    devmem "$addr" 32
+}
+
+case "${1:-read}" in
+    clear)
+        devmem 0xf0005014 32 0x00000002
+        ;;
+    ack)
+        devmem 0xf0005014 32 0x00000001
+        ;;
+    read)
+        read_reg rx_data           0xf0005000
+        read_reg tx_data           0xf0005004
+        read_reg rx_length         0xf0005008
+        read_reg status            0xf000500c
+        read_reg transaction_count 0xf0005010
+        read_reg raw_mosi          0xf0005018
+        read_reg raw_length        0xf000501c
+        read_reg raw_done          0xf0005020
+        read_reg raw_pins          0xf0005024
+        ;;
+    *)
+        echo "usage: $0 [read|clear|ack]" >&2
+        exit 2
+        ;;
+esac
+
+
+////////////////////////////////////////////////////////////////
 // FILE: ./tools/rebuild_kernel_tun.sh
 ////////////////////////////////////////////////////////////////
 
@@ -7566,6 +7890,264 @@ echo "done"
 
 
 ////////////////////////////////////////////////////////////////
+// FILE: ./tools/spi_diag_master.c
+////////////////////////////////////////////////////////////////
+
+#define _GNU_SOURCE
+#include <errno.h>
+#include <fcntl.h>
+#include <linux/spi/spidev.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <time.h>
+#include <unistd.h>
+
+static void die(const char *what) {
+    fprintf(stderr, "ERROR: %s: %s\n", what, strerror(errno));
+    exit(1);
+}
+
+static unsigned long parse_ul(const char *s, const char *name) {
+    char *end = NULL;
+    errno = 0;
+    unsigned long value = strtoul(s, &end, 0);
+    if (errno || !end || *end != '\0') {
+        fprintf(stderr, "ERROR: invalid %s: %s\n", name, s);
+        exit(2);
+    }
+    return value;
+}
+
+static uint8_t parse_byte(const char *s) {
+    unsigned long value = parse_ul(s, "byte");
+    if (value > 0xff) {
+        fprintf(stderr, "ERROR: byte out of range: %s\n", s);
+        exit(2);
+    }
+    return (uint8_t)value;
+}
+
+static void print_bytes(const char *label, const uint8_t *buf, size_t len) {
+    printf("%s", label);
+    for (size_t i = 0; i < len; ++i)
+        printf("%s%02x", i ? " " : "", buf[i]);
+    putchar('\n');
+}
+
+int main(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr,
+            "usage: %s [--device /dev/spidev0.0] [--speed HZ] "
+            "[--mode 0] [--delay-usecs N] BYTE [BYTE ...]\n",
+            argv[0]);
+        return 2;
+    }
+
+    const char *device = "/dev/spidev0.0";
+    uint32_t speed_hz = 100000;
+    uint8_t mode = SPI_MODE_0;
+    uint16_t delay_usecs = 0;
+
+    uint8_t tx[4096];
+    uint8_t rx[4096];
+    size_t len = 0;
+
+    for (int i = 1; i < argc; ++i) {
+        if (!strcmp(argv[i], "--device")) {
+            if (++i >= argc) return 2;
+            device = argv[i];
+        } else if (!strcmp(argv[i], "--speed")) {
+            if (++i >= argc) return 2;
+            speed_hz = (uint32_t)parse_ul(argv[i], "speed");
+        } else if (!strcmp(argv[i], "--mode")) {
+            if (++i >= argc) return 2;
+            unsigned long m = parse_ul(argv[i], "mode");
+            if (m > 3) {
+                fprintf(stderr, "ERROR: mode must be 0..3\n");
+                return 2;
+            }
+            mode = (uint8_t)m;
+        } else if (!strcmp(argv[i], "--delay-usecs")) {
+            if (++i >= argc) return 2;
+            delay_usecs = (uint16_t)parse_ul(argv[i], "delay-usecs");
+        } else {
+            if (len >= sizeof(tx)) {
+                fprintf(stderr, "ERROR: too many bytes\n");
+                return 2;
+            }
+            tx[len++] = parse_byte(argv[i]);
+        }
+    }
+
+    if (len == 0) {
+        fprintf(stderr, "ERROR: provide at least one byte\n");
+        return 2;
+    }
+
+    memset(rx, 0, sizeof(rx));
+
+    int fd = open(device, O_RDWR | O_CLOEXEC);
+    if (fd < 0) die("open spidev");
+
+    if (ioctl(fd, SPI_IOC_WR_MODE, &mode) < 0) die("SPI_IOC_WR_MODE");
+    if (ioctl(fd, SPI_IOC_RD_MODE, &mode) < 0) die("SPI_IOC_RD_MODE");
+
+    uint8_t bits = 8;
+    if (ioctl(fd, SPI_IOC_WR_BITS_PER_WORD, &bits) < 0)
+        die("SPI_IOC_WR_BITS_PER_WORD");
+    if (ioctl(fd, SPI_IOC_RD_BITS_PER_WORD, &bits) < 0)
+        die("SPI_IOC_RD_BITS_PER_WORD");
+
+    if (ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed_hz) < 0)
+        die("SPI_IOC_WR_MAX_SPEED_HZ");
+    if (ioctl(fd, SPI_IOC_RD_MAX_SPEED_HZ, &speed_hz) < 0)
+        die("SPI_IOC_RD_MAX_SPEED_HZ");
+
+    struct spi_ioc_transfer transfer = {
+        .tx_buf = (uintptr_t)tx,
+        .rx_buf = (uintptr_t)rx,
+        .len = (uint32_t)len,
+        .speed_hz = speed_hz,
+        .delay_usecs = delay_usecs,
+        .bits_per_word = bits,
+        .cs_change = 0,
+    };
+
+    struct timespec before, after;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &before);
+
+    int rc = ioctl(fd, SPI_IOC_MESSAGE(1), &transfer);
+    if (rc < 0) die("SPI_IOC_MESSAGE(1)");
+
+    clock_gettime(CLOCK_MONOTONIC_RAW, &after);
+    close(fd);
+
+    long long elapsed_ns =
+        (after.tv_sec - before.tv_sec) * 1000000000LL +
+        (after.tv_nsec - before.tv_nsec);
+
+    printf("device=%s mode=%u bits=%u requested_speed_hz=%u "
+           "bytes=%zu ioctl_return=%d elapsed_ns=%lld\n",
+           device, mode, bits, speed_hz, len, rc, elapsed_ns);
+    print_bytes("tx=", tx, len);
+    print_bytes("rx=", rx, len);
+
+    if (rc != (int)len) {
+        fprintf(stderr,
+            "WARNING: ioctl returned %d, expected %zu transferred bytes\n",
+            rc, len);
+    }
+
+    return 0;
+}
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./tools/spi_miso_jetson.sh
+////////////////////////////////////////////////////////////////
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+pattern="${1:-0xA55A3CC3}"
+speed="${SPI_TEST_SPEED_HZ:-100000}"
+device="${SPI_TEST_DEVICE:-/dev/spidev0.0}"
+
+mapfile -t rows < <(
+python3 - "$pattern" <<'PY'
+import sys
+value = int(sys.argv[1], 0)
+if not 0 <= value <= 0xffffffff:
+    raise SystemExit("pattern must fit in 32 bits")
+raw = value.to_bytes(4, "big")
+print(" ".join(f"0x{x:02x}" for x in raw))
+print(" ".join(f"{x:02x}" for x in raw))
+PY
+)
+
+send_bytes="${rows[0]}"
+expected_rx="${rows[1]}"
+
+echo "Jetson SPI MISO verification"
+echo "device:      $device"
+echo "speed:       $speed Hz"
+echo "expected RX: $expected_rx"
+
+set +e
+output="$(
+    sudo ./tools/spi_diag_master         --device "$device"         --speed "$speed"         --mode 0         $send_bytes 2>&1
+)"
+rc=$?
+set -e
+
+printf '%s\n' "$output"
+
+if [[ $rc -ne 0 ]]; then
+    echo "FAIL: spi_diag_master exited with status $rc" >&2
+    exit "$rc"
+fi
+
+actual_rx="$(
+    printf '%s\n' "$output" |
+    sed -n 's/^rx=//p' |
+    tail -1 |
+    tr '[:upper:]' '[:lower:]' |
+    xargs
+)"
+
+echo
+if [[ "$actual_rx" == "$expected_rx" ]]; then
+    echo "PASS: OrangeCrab -> Jetson MISO matched exactly: $actual_rx"
+else
+    echo "FAIL: MISO mismatch" >&2
+    echo "expected: $expected_rx" >&2
+    echo "actual:   $actual_rx" >&2
+    exit 1
+fi
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./tools/spi_miso_orangecrab.sh
+////////////////////////////////////////////////////////////////
+
+#!/usr/bin/env sh
+set -eu
+
+TX_DATA=0xf0005004
+CONTROL=0xf0005014
+pattern="${1:-0xA55A3CC3}"
+
+echo "OrangeCrab SPI MISO preparation"
+echo "pattern: $pattern"
+
+devmem "$CONTROL" 32 0x00000002
+devmem "$TX_DATA" 32 "$pattern"
+
+printf "%-30s " "tx_data_readback"
+devmem "$TX_DATA" 32
+
+echo
+echo "Run on Jetson:"
+echo "  ./tools/spi_miso_jetson.sh $pattern"
+echo
+echo "Then press Enter here."
+read _
+
+for x in     "rx_data:0xf0005000"     "tx_data:0xf0005004"     "rx_length:0xf0005008"     "status:0xf000500c"     "transaction_count:0xf0005010"     "raw_mosi:0xf0005018"     "raw_length:0xf000501c"     "raw_done:0xf0005020"     "raw_pins:0xf0005024"     "raw_cs_assert_count:0xf0005028"     "raw_cs_deassert_count:0xf000502c"     "raw_sck_rise_count:0xf0005030"     "raw_sck_fall_count:0xf0005034"     "raw_mosi_high_on_sck_rise:0xf0005038"     "raw_mosi_low_on_sck_rise:0xf000503c"
+do
+    name="${x%%:*}"
+    addr="${x##*:}"
+    printf "%-30s " "$name"
+    devmem "$addr" 32
+done
+
+
+////////////////////////////////////////////////////////////////
 // FILE: ./tools/start-ppp-jetson.sh
 ////////////////////////////////////////////////////////////////
 
@@ -7650,5 +8232,2177 @@ yosys-ghdl -p '
 echo
 echo "generated gateware/header_probe.v:"
 grep -nE 'module header_probe|inout|out_value|in_value|gpio|assign' gateware/header_probe.v | head -120
+
+
+
+################################################################
+# SECTION 3: RUST OLED SOURCE / INFO
+################################################################
+
+================================================================
+RUST OLED WORKSPACE SOURCE / INFO
+ROOT: /mnt/storage/see/1-c0d3/rust/oled
+GENERATED: 2026-07-16T18:49:40-07:00
+================================================================
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ../../rust/oled/axum_serve/Cargo.toml
+////////////////////////////////////////////////////////////////
+
+[package]
+name = "axum_serve"
+version = "0.1.0"
+edition = "2021"
+description = "HTTP + WebSocket network-appliance server for tiny_128x64: paint.html frontend, REST API, live framebuffer sync over websocket."
+
+[dependencies]
+tiny_128x64 = { path = "../tiny_128x64" }
+
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net"] }
+axum = { version = "0.7", features = ["ws"] }
+tower-http = { version = "0.5", features = ["fs", "trace"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ../../rust/oled/axum_serve/src/api.rs
+////////////////////////////////////////////////////////////////
+
+use crate::AppState;
+use axum::extract::State;
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
+use axum::Json;
+use serde::Serialize;
+use tiny_128x64::draw;
+use tiny_128x64::framebuffer::Framebuffer;
+
+pub async fn get_frame(State(state): State<AppState>) -> impl IntoResponse {
+    let bytes = state.fb.lock().await.raw_bytes();
+    ([("Content-Type", "application/octet-stream")], bytes)
+}
+
+pub async fn get_screenshot(State(state): State<AppState>) -> impl IntoResponse {
+    let pbm = state.fb.lock().await.to_pbm();
+    ([("Content-Type", "image/x-portable-bitmap")], pbm)
+}
+
+#[derive(Serialize)]
+pub struct Stats {
+    width: usize,
+    height: usize,
+    connected_clients: usize,
+}
+
+pub async fn get_stats(State(state): State<AppState>) -> impl IntoResponse {
+    Json(Stats {
+        width: tiny_128x64::framebuffer::WIDTH,
+        height: tiny_128x64::framebuffer::HEIGHT,
+        connected_clients: state.tx.receiver_count(),
+    })
+}
+
+pub async fn post_clear(State(state): State<AppState>) -> impl IntoResponse {
+    {
+        let mut fb = state.fb.lock().await;
+        draw::clear(&mut fb);
+    }
+    state.push_frame().await;
+    StatusCode::OK
+}
+
+pub async fn post_invert(State(state): State<AppState>) -> impl IntoResponse {
+    {
+        let mut fb = state.fb.lock().await;
+        draw::invert(&mut fb);
+    }
+    state.push_frame().await;
+    StatusCode::OK
+}
+
+pub async fn post_noise(State(state): State<AppState>) -> impl IntoResponse {
+    {
+        let mut fb = state.fb.lock().await;
+        draw::noise(&mut fb);
+    }
+    state.push_frame().await;
+    StatusCode::OK
+}
+
+/// Accepts a raw 1024-byte page-major bitmap (same shape as GET /frame)
+/// and loads it straight into the framebuffer.
+pub async fn post_upload(
+    State(state): State<AppState>,
+    body: axum::body::Bytes,
+) -> impl IntoResponse {
+    match Framebuffer::from_raw_bytes(&body) {
+        Some(new_fb) => {
+            {
+                let mut fb = state.fb.lock().await;
+                *fb = new_fb;
+            }
+            state.push_frame().await;
+            StatusCode::OK.into_response()
+        }
+        None => (
+            StatusCode::BAD_REQUEST,
+            "expected exactly 1024 raw bytes (128x64, 8 pages x 128 bytes, 1bpp)",
+        )
+            .into_response(),
+    }
+}
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ../../rust/oled/axum_serve/src/main.rs
+////////////////////////////////////////////////////////////////
+
+mod api;
+mod web;
+mod websocket;
+
+use anyhow::Result;
+use std::sync::Arc;
+use tiny_128x64::framebuffer::Framebuffer;
+use tiny_128x64::oled::OledHandle;
+use tokio::sync::{broadcast, Mutex};
+
+/// Shared server state: the framebuffer, the (possibly headless) panel
+/// handle, and a broadcast channel so every connected browser sees the same
+/// picture live.
+#[derive(Clone)]
+pub struct AppState {
+    pub fb: Arc<Mutex<Framebuffer>>,
+    pub oled: Arc<Mutex<OledHandle>>,
+    pub tx: broadcast::Sender<Vec<u8>>,
+}
+
+impl AppState {
+    /// Push the current framebuffer to the physical panel (if present) and
+    /// broadcast it to every connected websocket client.
+    pub async fn push_frame(&self) {
+        {
+            let mut oled = self.oled.lock().await;
+            let fb = self.fb.lock().await;
+            oled.flush(&fb);
+        }
+        let bytes = self.fb.lock().await.raw_bytes();
+        let _ = self.tx.send(bytes);
+    }
+}
+
+/// Minimal hand-rolled CLI args (kept dependency-free -- easier to
+/// cross-compile for the OrangeCrab's target).
+///
+/// Usage: axum_serve [--i2c-bus /dev/i2c-0] [--i2c-addr 0x3c]
+///                    [--bind 0.0.0.0:80] [--static-dir static]
+struct Args {
+    i2c_bus: String,
+    i2c_addr: String,
+    bind: String,
+    static_dir: String,
+}
+
+impl Args {
+    fn parse() -> Self {
+        let mut args = Args {
+            i2c_bus: "/dev/i2c-0".to_string(),
+            i2c_addr: "0x3c".to_string(),
+            bind: "0.0.0.0:80".to_string(),
+            static_dir: "static".to_string(),
+        };
+        let mut it = std::env::args().skip(1);
+        while let Some(flag) = it.next() {
+            let Some(value) = it.next() else {
+                eprintln!("missing value for {flag}");
+                std::process::exit(1);
+            };
+            match flag.as_str() {
+                "--i2c-bus" => args.i2c_bus = value,
+                "--i2c-addr" => args.i2c_addr = value,
+                "--bind" => args.bind = value,
+                "--static-dir" => args.static_dir = value,
+                other => {
+                    eprintln!("unknown flag: {other}");
+                    std::process::exit(1);
+                }
+            }
+        }
+        args
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    tracing_subscriber::fmt::init();
+    let args = Args::parse();
+
+    let addr_val = u16::from_str_radix(args.i2c_addr.trim_start_matches("0x"), 16).unwrap_or(0x3c);
+
+    let (tx, _rx) = broadcast::channel(32);
+
+    let state = AppState {
+        fb: Arc::new(Mutex::new(Framebuffer::new())),
+        oled: Arc::new(Mutex::new(OledHandle::open(&args.i2c_bus, addr_val))),
+        tx,
+    };
+
+    // Draw one initial frame so the panel (and any connected browser) shows
+    // something other than garbage on boot.
+    state.push_frame().await;
+
+    let app = web::build_router(state, &args.static_dir);
+
+    tracing::info!("axum_serve listening on {}", args.bind);
+    let listener = tokio::net::TcpListener::bind(&args.bind).await?;
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ../../rust/oled/axum_serve/src/web.rs
+////////////////////////////////////////////////////////////////
+
+use crate::{api, websocket, AppState};
+use axum::routing::{get, post};
+use axum::Router;
+use tower_http::services::ServeDir;
+use tower_http::trace::TraceLayer;
+
+pub fn build_router(state: AppState, static_dir: &str) -> Router {
+    Router::new()
+        .route("/ws", get(websocket::ws_handler))
+        .route("/frame", get(api::get_frame))
+        .route("/screenshot", get(api::get_screenshot))
+        .route("/stats", get(api::get_stats))
+        .route("/clear", post(api::post_clear))
+        .route("/invert", post(api::post_invert))
+        .route("/noise", post(api::post_noise))
+        .route("/upload", post(api::post_upload))
+        .with_state(state)
+        .nest_service("/", ServeDir::new(static_dir))
+        .layer(TraceLayer::new_for_http())
+}
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ../../rust/oled/axum_serve/src/websocket.rs
+////////////////////////////////////////////////////////////////
+
+use crate::AppState;
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::extract::State;
+use axum::response::IntoResponse;
+use serde::Deserialize;
+use tiny_128x64::draw;
+
+/// The browser never sends pixels -- only drawing commands. The server owns
+/// the framebuffer and is the single source of truth.
+#[derive(Deserialize, Debug)]
+#[serde(tag = "cmd", rename_all = "lowercase")]
+enum WsCommand {
+    Line {
+        x0: i32,
+        y0: i32,
+        x1: i32,
+        y1: i32,
+        #[serde(default = "default_true")]
+        color: bool,
+    },
+    Brush {
+        x: i32,
+        y: i32,
+        radius: i32,
+        #[serde(default = "default_true")]
+        color: bool,
+    },
+    Rect {
+        x0: i32,
+        y0: i32,
+        x1: i32,
+        y1: i32,
+        #[serde(default = "default_true")]
+        color: bool,
+        #[serde(default)]
+        filled: bool,
+    },
+    Clear,
+    Invert,
+    Noise,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_socket(socket, state))
+}
+
+async fn handle_socket(mut socket: WebSocket, state: AppState) {
+    // Send the current frame immediately so a new client isn't blank until
+    // someone else draws something.
+    {
+        let bytes = state.fb.lock().await.raw_bytes();
+        let _ = socket.send(Message::Binary(bytes)).await;
+    }
+
+    let mut rx = state.tx.subscribe();
+
+    loop {
+        tokio::select! {
+            msg = socket.recv() => {
+                let Some(Ok(msg)) = msg else { break; };
+                if let Message::Text(text) = msg {
+                    match serde_json::from_str::<WsCommand>(&text) {
+                        Ok(cmd) => apply_command(&state, cmd).await,
+                        Err(e) => tracing::warn!("bad ws command {text:?}: {e}"),
+                    }
+                }
+            }
+            frame = rx.recv() => {
+                if let Ok(bytes) = frame {
+                    if socket.send(Message::Binary(bytes)).await.is_err() {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+async fn apply_command(state: &AppState, cmd: WsCommand) {
+    {
+        let mut fb = state.fb.lock().await;
+        match cmd {
+            WsCommand::Line { x0, y0, x1, y1, color } => draw::line(&mut fb, x0, y0, x1, y1, color),
+            WsCommand::Brush { x, y, radius, color } => draw::brush(&mut fb, x, y, radius, color),
+            WsCommand::Rect { x0, y0, x1, y1, color, filled } => {
+                draw::rect(&mut fb, x0, y0, x1, y1, color, filled)
+            }
+            WsCommand::Clear => draw::clear(&mut fb),
+            WsCommand::Invert => draw::invert(&mut fb),
+            WsCommand::Noise => draw::noise(&mut fb),
+        }
+    }
+    state.push_frame().await;
+}
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ../../rust/oled/Cargo.lock
+////////////////////////////////////////////////////////////////
+
+# This file is automatically @generated by Cargo.
+# It is not intended for manual editing.
+version = 4
+
+[[package]]
+name = "anyhow"
+version = "1.0.103"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
+
+[[package]]
+name = "async-trait"
+version = "0.1.89"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9035ad2d096bed7955a320ee7e2230574d28fd3c3a0f186cbea1ff3c7eed5dbb"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "atomic-waker"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
+
+[[package]]
+name = "axum"
+version = "0.7.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edca88bc138befd0323b20752846e6587272d3b03b0343c8ea28a6f819e6e71f"
+dependencies = [
+ "async-trait",
+ "axum-core",
+ "base64",
+ "bytes",
+ "futures-util",
+ "http",
+ "http-body",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "itoa",
+ "matchit",
+ "memchr",
+ "mime",
+ "percent-encoding",
+ "pin-project-lite",
+ "rustversion",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "serde_urlencoded",
+ "sha1",
+ "sync_wrapper",
+ "tokio",
+ "tokio-tungstenite",
+ "tower",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
+name = "axum-core"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09f2bd6146b97ae3359fa0cc6d6b376d9539582c7b4220f041a33ec24c226199"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "futures-util",
+ "http",
+ "http-body",
+ "http-body-util",
+ "mime",
+ "pin-project-lite",
+ "rustversion",
+ "sync_wrapper",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
+name = "axum_serve"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "serde",
+ "serde_json",
+ "tiny_128x64",
+ "tokio",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "base64"
+version = "0.22.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
+
+[[package]]
+name = "bitflags"
+version = "1.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
+
+[[package]]
+name = "bitflags"
+version = "2.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4388bee8683e3d04af747c73422af53102d2bd24d9eadb6cbc100baef4b43f8"
+
+[[package]]
+name = "block-buffer"
+version = "0.10.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
+dependencies = [
+ "generic-array",
+]
+
+[[package]]
+name = "byteorder"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
+
+[[package]]
+name = "bytes"
+version = "1.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ae3f5d315924270530207e2a68396c3cc547f6dca3fbdca317cfb1a51edb593"
+
+[[package]]
+name = "cfg-if"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
+
+[[package]]
+name = "cpufeatures"
+version = "0.2.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59ed5838eebb26a2bb2e58f6d5b5316989ae9d08bab10e0e6d103e656d1b0280"
+dependencies = [
+ "libc",
+]
+
+[[package]]
+name = "crypto-common"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78c8292055d1c1df0cce5d180393dc8cce0abec0a7102adb6c7b1eef6016d60a"
+dependencies = [
+ "generic-array",
+ "typenum",
+]
+
+[[package]]
+name = "data-encoding"
+version = "2.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4ae5f15dda3c708c0ade84bfee31ccab44a3da4f88015ed22f63732abe300c8"
+
+[[package]]
+name = "digest"
+version = "0.10.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
+dependencies = [
+ "block-buffer",
+ "crypto-common",
+]
+
+[[package]]
+name = "form_urlencoded"
+version = "1.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf"
+dependencies = [
+ "percent-encoding",
+]
+
+[[package]]
+name = "futures-channel"
+version = "0.3.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "07bbe89c50d7a535e539b8c17bc0b49bdb77747034daa8087407d655f3f7cc1d"
+dependencies = [
+ "futures-core",
+]
+
+[[package]]
+name = "futures-core"
+version = "0.3.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e3450815272ef58cec6d564423f6e755e25379b217b0bc688e295ba24df6b1d"
+
+[[package]]
+name = "futures-sink"
+version = "0.3.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c39754e157331b013978ec91992bde1ac089843443c49cbc7f46150b0fad0893"
+
+[[package]]
+name = "futures-task"
+version = "0.3.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "037711b3d59c33004d3856fbdc83b99d4ff37a24768fa1be9ce3538a1cde4393"
+
+[[package]]
+name = "futures-util"
+version = "0.3.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "389ca41296e6190b48053de0321d02a77f32f8a5d2461dd38762c0593805c6d6"
+dependencies = [
+ "futures-core",
+ "futures-sink",
+ "futures-task",
+ "pin-project-lite",
+ "slab",
+]
+
+[[package]]
+name = "generic-array"
+version = "0.14.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a"
+dependencies = [
+ "typenum",
+ "version_check",
+]
+
+[[package]]
+name = "getrandom"
+version = "0.2.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff2abc00be7fca6ebc474524697ae276ad847ad0a6b3faa4bcb027e9a4614ad0"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "wasi",
+]
+
+[[package]]
+name = "http"
+version = "1.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6970f50e31d6fc17d3fa27329444bfa74e196cf62e95052a3f6fee181dba6425"
+dependencies = [
+ "bytes",
+ "itoa",
+]
+
+[[package]]
+name = "http-body"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1efedce1fb8e6913f23e0c92de8e62cd5b772a67e7b3946df930a62566c93184"
+dependencies = [
+ "bytes",
+ "http",
+]
+
+[[package]]
+name = "http-body-util"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b021d93e26becf5dc7e1b75b1bed1fd93124b374ceb73f43d4d4eafec896a64a"
+dependencies = [
+ "bytes",
+ "futures-core",
+ "http",
+ "http-body",
+ "pin-project-lite",
+]
+
+[[package]]
+name = "http-range-header"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9171a2ea8a68358193d15dd5d70c1c10a2afc3e7e4c5bc92bc9f025cebd7359c"
+
+[[package]]
+name = "httparse"
+version = "1.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87"
+
+[[package]]
+name = "httpdate"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
+
+[[package]]
+name = "hyper"
+version = "1.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "55281c53a1894c864990125767da440a4e630446785086f52523b20033b74498"
+dependencies = [
+ "atomic-waker",
+ "bytes",
+ "futures-channel",
+ "futures-core",
+ "http",
+ "http-body",
+ "httparse",
+ "httpdate",
+ "itoa",
+ "pin-project-lite",
+ "smallvec",
+ "tokio",
+]
+
+[[package]]
+name = "hyper-util"
+version = "0.1.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96547c2556ec9d12fb1578c4eaf448b04993e7fb79cbaad930a656880a6bdfa0"
+dependencies = [
+ "bytes",
+ "http",
+ "http-body",
+ "hyper",
+ "pin-project-lite",
+ "tokio",
+ "tower-service",
+]
+
+[[package]]
+name = "i2cdev"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b940f7497c4f95b863b21cd34c3737b53a67d80d94cf29055d7f7eeca6ffdb4"
+dependencies = [
+ "bitflags 2.13.0",
+ "byteorder",
+ "libc",
+ "nix",
+]
+
+[[package]]
+name = "itoa"
+version = "1.0.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
+
+[[package]]
+name = "lazy_static"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
+
+[[package]]
+name = "libc"
+version = "0.2.186"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
+
+[[package]]
+name = "log"
+version = "0.4.33"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
+
+[[package]]
+name = "matchit"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e7465ac9959cc2b1404e8e2367b43684a6d13790fe23056cc8c6c5a6b7bcb94"
+
+[[package]]
+name = "memchr"
+version = "2.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "88904434abc2901f197fe8cc55f0445e7ded921dba5911dad2e2b39b48e663c4"
+
+[[package]]
+name = "mime"
+version = "0.3.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
+
+[[package]]
+name = "mime_guess"
+version = "2.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7c44f8e672c00fe5308fa235f821cb4198414e1c77935c1ab6948d3fd78550e"
+dependencies = [
+ "mime",
+ "unicase",
+]
+
+[[package]]
+name = "mio"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02bd0af71c67b473010cbbc60715ee815645a4dc942899111f494b4b737d6fda"
+dependencies = [
+ "libc",
+ "wasi",
+ "windows-sys",
+]
+
+[[package]]
+name = "nix"
+version = "0.26.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "598beaf3cc6fdd9a5dfb1630c2800c7acd31df7aaf0f565796fba2b53ca1af1b"
+dependencies = [
+ "bitflags 1.3.2",
+ "cfg-if",
+ "libc",
+]
+
+[[package]]
+name = "nu-ansi-term"
+version = "0.50.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
+dependencies = [
+ "windows-sys",
+]
+
+[[package]]
+name = "once_cell"
+version = "1.21.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
+
+[[package]]
+name = "percent-encoding"
+version = "2.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
+
+[[package]]
+name = "pin-project-lite"
+version = "0.2.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
+
+[[package]]
+name = "ppv-lite86"
+version = "0.2.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9"
+dependencies = [
+ "zerocopy",
+]
+
+[[package]]
+name = "proc-macro2"
+version = "1.0.106"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8fd00f0bb2e90d81d1044c2b32617f68fcb9fa3bb7640c23e9c748e53fb30934"
+dependencies = [
+ "unicode-ident",
+]
+
+[[package]]
+name = "quote"
+version = "1.0.46"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dfbc457d0c7a0759a614551b11a6409e5951f6c7537be1f1b7682b9ae9230368"
+dependencies = [
+ "proc-macro2",
+]
+
+[[package]]
+name = "rand"
+version = "0.8.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ca0ecfa931c29007047d1bc58e623ab12e5590e8c7cc53200d5202b69266d8a"
+dependencies = [
+ "libc",
+ "rand_chacha",
+ "rand_core",
+]
+
+[[package]]
+name = "rand_chacha"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88"
+dependencies = [
+ "ppv-lite86",
+ "rand_core",
+]
+
+[[package]]
+name = "rand_core"
+version = "0.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
+dependencies = [
+ "getrandom",
+]
+
+[[package]]
+name = "rustversion"
+version = "1.0.22"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
+
+[[package]]
+name = "ryu"
+version = "1.0.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
+
+[[package]]
+name = "serde"
+version = "1.0.228"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
+dependencies = [
+ "serde_core",
+ "serde_derive",
+]
+
+[[package]]
+name = "serde_core"
+version = "1.0.228"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41d385c7d4ca58e59fc732af25c3983b67ac852c1a25000afe1175de458b67ad"
+dependencies = [
+ "serde_derive",
+]
+
+[[package]]
+name = "serde_derive"
+version = "1.0.228"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "serde_json"
+version = "1.0.150"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8014e44b4736ed0538adeecded0fce2a272f22dc9578a7eb6b2d9993c74cfb9"
+dependencies = [
+ "itoa",
+ "memchr",
+ "serde",
+ "serde_core",
+ "zmij",
+]
+
+[[package]]
+name = "serde_path_to_error"
+version = "0.1.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10a9ff822e371bb5403e391ecd83e182e0e77ba7f6fe0160b795797109d1b457"
+dependencies = [
+ "itoa",
+ "serde",
+ "serde_core",
+]
+
+[[package]]
+name = "serde_urlencoded"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3491c14715ca2294c4d6a88f15e84739788c1d030eed8c110436aafdaa2f3fd"
+dependencies = [
+ "form_urlencoded",
+ "itoa",
+ "ryu",
+ "serde",
+]
+
+[[package]]
+name = "serial_bridge"
+version = "0.1.0"
+dependencies = [
+ "libc",
+]
+
+[[package]]
+name = "sha1"
+version = "0.10.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3bf829a2d51ab4a5ddf1352d8470c140cadc8301b2ae1789db023f01cedd6ba"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "digest",
+]
+
+[[package]]
+name = "sharded-slab"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
+dependencies = [
+ "lazy_static",
+]
+
+[[package]]
+name = "slab"
+version = "0.4.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
+
+[[package]]
+name = "smallvec"
+version = "1.15.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ed6a63f02c8539c91a8685a86f4099661ba3da017932f6ebbea6de3f0fa7c90"
+
+[[package]]
+name = "socket2"
+version = "0.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52d1cfed4120b4d927bf7c0f86d2087a4a7d6027c906d9f9d525a80573b9be51"
+dependencies = [
+ "libc",
+ "windows-sys",
+]
+
+[[package]]
+name = "syn"
+version = "2.0.118"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b9ae57f904213ebb649ce6895b8a66c66f0203b9319718f69a5612a065b1422"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
+]
+
+[[package]]
+name = "sync_wrapper"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0bf256ce5efdfa370213c1dabab5935a12e49f2c58d15e9eac2870d3b4f27263"
+
+[[package]]
+name = "thiserror"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "thread_local"
+version = "1.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f60246a4944f24f6e018aa17cdeffb7818b76356965d03b07d6a9886e8962185"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
+name = "tiny_128x64"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "i2cdev",
+ "rand",
+ "tracing",
+]
+
+[[package]]
+name = "tokio"
+version = "1.52.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8fc7f01b389ac15039e4dc9531aa973a135d7a4135281b12d7c1bc79fd57fffe"
+dependencies = [
+ "bytes",
+ "libc",
+ "mio",
+ "pin-project-lite",
+ "socket2",
+ "tokio-macros",
+ "windows-sys",
+]
+
+[[package]]
+name = "tokio-macros"
+version = "2.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "385a6cb71ab9ab790c5fe8d67f1645e6c450a7ce006a33de03daa956cf70a496"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "tokio-tungstenite"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edc5f74e248dc973e0dbb7b74c7e0d6fcc301c694ff50049504004ef4d0cdcd9"
+dependencies = [
+ "futures-util",
+ "log",
+ "tokio",
+ "tungstenite",
+]
+
+[[package]]
+name = "tokio-util"
+version = "0.7.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ae9cec805b01e8fc3fd2fe289f89149a9b66dd16786abd8b19cfa7b48cb0098"
+dependencies = [
+ "bytes",
+ "futures-core",
+ "futures-sink",
+ "pin-project-lite",
+ "tokio",
+]
+
+[[package]]
+name = "tower"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ebe5ef63511595f1344e2d5cfa636d973292adc0eec1f0ad45fae9f0851ab1d4"
+dependencies = [
+ "futures-core",
+ "futures-util",
+ "pin-project-lite",
+ "sync_wrapper",
+ "tokio",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
+name = "tower-http"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e9cd434a998747dd2c4276bc96ee2e0c7a2eadf3cae88e52be55a05fa9053f5"
+dependencies = [
+ "bitflags 2.13.0",
+ "bytes",
+ "futures-util",
+ "http",
+ "http-body",
+ "http-body-util",
+ "http-range-header",
+ "httpdate",
+ "mime",
+ "mime_guess",
+ "percent-encoding",
+ "pin-project-lite",
+ "tokio",
+ "tokio-util",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
+name = "tower-layer"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "121c2a6cda46980bb0fcd1647ffaf6cd3fc79a013de288782836f6df9c48780e"
+
+[[package]]
+name = "tower-service"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
+
+[[package]]
+name = "tracing"
+version = "0.1.44"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63e71662fa4b2a2c3a26f570f037eb95bb1f85397f3cd8076caed2f026a6d100"
+dependencies = [
+ "log",
+ "pin-project-lite",
+ "tracing-attributes",
+ "tracing-core",
+]
+
+[[package]]
+name = "tracing-attributes"
+version = "0.1.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7490cfa5ec963746568740651ac6781f701c9c5ea257c58e057f3ba8cf69e8da"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "tracing-core"
+version = "0.1.36"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
+dependencies = [
+ "once_cell",
+ "valuable",
+]
+
+[[package]]
+name = "tracing-log"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee855f1f400bd0e5c02d150ae5de3840039a3f54b025156404e34c23c03f47c3"
+dependencies = [
+ "log",
+ "once_cell",
+ "tracing-core",
+]
+
+[[package]]
+name = "tracing-subscriber"
+version = "0.3.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb7f578e5945fb242538965c2d0b04418d38ec25c79d160cd279bf0731c8d319"
+dependencies = [
+ "nu-ansi-term",
+ "sharded-slab",
+ "smallvec",
+ "thread_local",
+ "tracing-core",
+ "tracing-log",
+]
+
+[[package]]
+name = "tungstenite"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18e5b8366ee7a95b16d32197d0b2604b43a0be89dc5fac9f8e96ccafbaedda8a"
+dependencies = [
+ "byteorder",
+ "bytes",
+ "data-encoding",
+ "http",
+ "httparse",
+ "log",
+ "rand",
+ "sha1",
+ "thiserror",
+ "utf-8",
+]
+
+[[package]]
+name = "typenum"
+version = "1.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
+
+[[package]]
+name = "unicase"
+version = "2.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dbc4bc3a9f746d862c45cb89d705aa10f187bb96c76001afab07a0d35ce60142"
+
+[[package]]
+name = "unicode-ident"
+version = "1.0.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+
+[[package]]
+name = "utf-8"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9"
+
+[[package]]
+name = "valuable"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
+
+[[package]]
+name = "version_check"
+version = "0.9.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "wasi"
+version = "0.11.1+wasi-snapshot-preview1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b"
+
+[[package]]
+name = "windows-link"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
+
+[[package]]
+name = "windows-sys"
+version = "0.61.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
+dependencies = [
+ "windows-link",
+]
+
+[[package]]
+name = "zerocopy"
+version = "0.8.52"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce1022995ff5ff5d841ad7d994facc23098cd40152f2c1d11cd607c6f530653f"
+dependencies = [
+ "zerocopy-derive",
+]
+
+[[package]]
+name = "zerocopy-derive"
+version = "0.8.52"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ae7f38b72ec2a254e2b87ef277cf2cd4fb97cbebf944faa6f33354da0867930"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "zmij"
+version = "1.0.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ../../rust/oled/Cargo.toml
+////////////////////////////////////////////////////////////////
+
+[workspace]
+resolver = "2"
+members = [
+    "tiny_128x64",
+    "axum_serve",
+    "serial_bridge",
+]
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ../../rust/oled/rust-toolchain.toml
+////////////////////////////////////////////////////////////////
+
+[toolchain]
+channel = "nightly-2026-07-02"
+components = ["rust-src"]
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ../../rust/oled/rv32ima-buildroot.json
+////////////////////////////////////////////////////////////////
+
+{
+  "arch": "riscv32",
+  "code-model": "medium",
+  "cpu": "generic-rv32",
+  "crt-objects-fallback": "false",
+  "crt-static-respected": true,
+  "data-layout": "e-m:e-p:32:32-i64:64-n32-S128",
+  "default-uwtable": true,
+  "dynamic-linking": true,
+  "env": "gnu",
+  "features": "+m,+a",
+  "has-rpath": true,
+  "has-thread-local": true,
+  "linker-flavor": "gnu-cc",
+  "llvm-abiname": "ilp32",
+  "llvm-target": "riscv32-unknown-linux-gnu",
+  "max-atomic-width": 32,
+  "metadata": {
+    "description": "RISC-V Linux (kernel 5.4, glibc 2.33)",
+    "host_tools": false,
+    "std": true,
+    "tier": 3
+  },
+  "os": "linux",
+  "position-independent-executables": true,
+  "relro-level": "full",
+  "target-family": [
+    "unix"
+  ],
+  "target-mcount": "\u0001_mcount",
+  "target-pointer-width": 32
+}
+
+////////////////////////////////////////////////////////////////
+// FILE: ../../rust/oled/serial_bridge/Cargo.toml
+////////////////////////////////////////////////////////////////
+
+[package]
+name = "serial_bridge"
+version = "0.1.0"
+edition = "2021"
+description = "Minimal TUN-over-serial IP bridge: no tokio, no PPP daemon, just framed IP packets over a raw tty."
+
+[dependencies]
+libc = "0.2"
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ../../rust/oled/serial_bridge/src/main.rs
+////////////////////////////////////////////////////////////////
+
+//! Minimal TUN-over-serial IP bridge, v3.
+//!
+//! Critical fix from v2: raw termios mode on the serial tty is a
+//! *device-wide* setting, not per-process. On the board, that tty is also
+//! the login shell's controlling terminal (console=liteuart), so entering
+//! raw mode silently breaks the shell's echo/canonical-input/signal
+//! handling (including Ctrl-C) until something restores it.
+//!
+//! This version saves the original termios before switching to raw mode
+//! and explicitly restores it on every exit path -- including the
+//! idle-timeout watchdog's std::process::exit(), which bypasses Rust's
+//! normal Drop-based cleanup entirely.
+
+use std::env;
+use std::ffi::CString;
+use std::fs::File;
+use std::io::{self, Read, Write};
+use std::mem;
+use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
+use std::process::Command;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+const TUNSETIFF: libc::c_ulong = 0x4004_54ca;
+const IFF_TUN: i16 = 0x0001;
+const IFF_NO_PI: i16 = 0x1000;
+
+const FRAME_MAGIC: [u8; 2] = [0xAA, 0x55];
+const MAX_FRAME: usize = 2048;
+
+#[repr(C)]
+struct IfReq {
+    ifr_name: [u8; 16],
+    ifr_flags: i16,
+    _pad: [u8; 22],
+}
+
+struct Args {
+    mode: String,
+    tty: String,
+    tun_name: String,
+    local_ip: String,
+    peer_ip: String,
+    prefix: u8,
+    mtu: usize,
+    idle_timeout: u32,
+}
+
+impl Args {
+    fn parse() -> Self {
+        let mut a = Args {
+            mode: "board".to_string(),
+            tty: "/dev/ttyLXU0".to_string(),
+            tun_name: "tun0".to_string(),
+            local_ip: "192.168.7.1".to_string(),
+            peer_ip: "192.168.7.2".to_string(),
+            prefix: 30,
+            mtu: 576,
+            idle_timeout: 20,
+        };
+        let mut it = env::args().skip(1);
+        while let Some(flag) = it.next() {
+            let Some(value) = it.next() else {
+                eprintln!("missing value for {flag}");
+                std::process::exit(1);
+            };
+            match flag.as_str() {
+                "--mode" => a.mode = value,
+                "--tty" => a.tty = value,
+                "--tun-name" => a.tun_name = value,
+                "--local-ip" => a.local_ip = value,
+                "--peer-ip" => a.peer_ip = value,
+                "--prefix" => a.prefix = value.parse().unwrap_or(30),
+                "--mtu" => a.mtu = value.parse().unwrap_or(576),
+                "--idle-timeout" => a.idle_timeout = value.parse().unwrap_or(20),
+                other => {
+                    eprintln!("unknown flag: {other}");
+                    std::process::exit(1);
+                }
+            }
+        }
+        a
+    }
+}
+
+fn open_tun(name: &str) -> io::Result<File> {
+    let path = CString::new("/dev/net/tun").unwrap();
+    let fd = unsafe { libc::open(path.as_ptr(), libc::O_RDWR) };
+    if fd < 0 {
+        return Err(io::Error::last_os_error());
+    }
+
+    let mut req: IfReq = unsafe { mem::zeroed() };
+    let name_bytes = name.as_bytes();
+    let n = name_bytes.len().min(15);
+    req.ifr_name[..n].copy_from_slice(&name_bytes[..n]);
+    req.ifr_flags = IFF_TUN | IFF_NO_PI;
+
+    let ret = unsafe { libc::ioctl(fd, TUNSETIFF, &mut req as *mut IfReq) };
+    if ret < 0 {
+        let e = io::Error::last_os_error();
+        unsafe { libc::close(fd) };
+        return Err(e);
+    }
+
+    Ok(unsafe { File::from_raw_fd(fd) })
+}
+
+fn run(cmd: &str, args: &[&str]) -> io::Result<()> {
+    eprintln!("+ {cmd} {}", args.join(" "));
+    let status = Command::new(cmd).args(args).status()?;
+    if !status.success() {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("{cmd} exited with {status}"),
+        ));
+    }
+    Ok(())
+}
+
+fn configure_interface(name: &str, local_ip: &str, prefix: u8, mtu: usize) -> io::Result<()> {
+    run("ip", &["link", "set", "dev", name, "mtu", &mtu.to_string()])?;
+    run(
+        "ip",
+        &["addr", "add", &format!("{local_ip}/{prefix}"), "dev", name],
+    )?;
+    run("ip", &["link", "set", "dev", name, "up"])?;
+    Ok(())
+}
+
+fn open_serial(path: &str) -> io::Result<(File, libc::termios)> {
+    let c_path = CString::new(path).unwrap();
+    let fd = unsafe { libc::open(c_path.as_ptr(), libc::O_RDWR | libc::O_NOCTTY) };
+    if fd < 0 {
+        return Err(io::Error::last_os_error());
+    }
+
+    let mut original: libc::termios = unsafe { mem::zeroed() };
+    if unsafe { libc::tcgetattr(fd, &mut original) } != 0 {
+        let e = io::Error::last_os_error();
+        unsafe { libc::close(fd) };
+        return Err(e);
+    }
+
+    let mut raw = original;
+    unsafe {
+        libc::cfmakeraw(&mut raw);
+        libc::cfsetispeed(&mut raw, libc::B115200);
+        libc::cfsetospeed(&mut raw, libc::B115200);
+    }
+    raw.c_cflag |= libc::CLOCAL | libc::CREAD;
+    raw.c_cc[libc::VMIN] = 1;
+    raw.c_cc[libc::VTIME] = 0;
+
+    if unsafe { libc::tcsetattr(fd, libc::TCSANOW, &raw) } != 0 {
+        let e = io::Error::last_os_error();
+        unsafe { libc::close(fd) };
+        return Err(e);
+    }
+
+    Ok((unsafe { File::from_raw_fd(fd) }, original))
+}
+
+fn restore_termios(fd: RawFd, original: &libc::termios) {
+    unsafe {
+        libc::tcsetattr(fd, libc::TCSANOW, original);
+    }
+}
+
+fn restore_and_exit(fd: RawFd, original: &libc::termios, code: i32) -> ! {
+    restore_termios(fd, original);
+    std::process::exit(code);
+}
+
+struct TermiosGuard {
+    fd: RawFd,
+    original: libc::termios,
+}
+
+impl Drop for TermiosGuard {
+    fn drop(&mut self) {
+        restore_termios(self.fd, &self.original);
+        eprintln!("termios restored on exit");
+    }
+}
+
+fn crc16(data: &[u8]) -> u16 {
+    let mut crc: u16 = 0xFFFF;
+    for &byte in data {
+        crc ^= (byte as u16) << 8;
+        for _ in 0..8 {
+            if crc & 0x8000 != 0 {
+                crc = (crc << 1) ^ 0x1021;
+            } else {
+                crc <<= 1;
+            }
+        }
+    }
+    crc
+}
+
+fn write_frame(out: &mut impl Write, payload: &[u8]) -> io::Result<()> {
+    let len = payload.len().min(MAX_FRAME) as u16;
+    let len_bytes = len.to_be_bytes();
+
+    let mut crc_input = Vec::with_capacity(2 + len as usize);
+    crc_input.extend_from_slice(&len_bytes);
+    crc_input.extend_from_slice(&payload[..len as usize]);
+    let crc = crc16(&crc_input);
+
+    let mut out_buf = Vec::with_capacity(4 + len as usize + 2);
+    out_buf.extend_from_slice(&FRAME_MAGIC);
+    out_buf.extend_from_slice(&crc_input);
+    out_buf.extend_from_slice(&crc.to_be_bytes());
+
+    out.write_all(&out_buf)?;
+    out.flush()
+}
+
+enum FrameResult {
+    Payload(Vec<u8>),
+    ChecksumMismatch,
+}
+
+fn read_frame(input: &mut impl Read, activity: &Arc<AtomicU32>) -> io::Result<FrameResult> {
+    let mut byte = [0u8; 1];
+    let mut state = 0u8;
+    loop {
+        input.read_exact(&mut byte)?;
+        bump(activity);
+        match state {
+            0 => state = u8::from(byte[0] == FRAME_MAGIC[0]),
+            1 => {
+                if byte[0] == FRAME_MAGIC[1] {
+                    state = 2;
+                } else {
+                    state = u8::from(byte[0] == FRAME_MAGIC[0]);
+                }
+            }
+            _ => break,
+        }
+    }
+
+    let mut len_bytes = [0u8; 2];
+    input.read_exact(&mut len_bytes)?;
+    bump(activity);
+    let len = u16::from_be_bytes(len_bytes) as usize;
+    if len > MAX_FRAME {
+        return Ok(FrameResult::ChecksumMismatch);
+    }
+
+    let mut payload = vec![0u8; len];
+    if len > 0 {
+        input.read_exact(&mut payload)?;
+        bump(activity);
+    }
+
+    let mut crc_bytes = [0u8; 2];
+    input.read_exact(&mut crc_bytes)?;
+    bump(activity);
+    let received_crc = u16::from_be_bytes(crc_bytes);
+
+    let mut crc_input = Vec::with_capacity(2 + len);
+    crc_input.extend_from_slice(&len_bytes);
+    crc_input.extend_from_slice(&payload);
+    let computed_crc = crc16(&crc_input);
+
+    if computed_crc != received_crc {
+        return Ok(FrameResult::ChecksumMismatch);
+    }
+
+    Ok(FrameResult::Payload(payload))
+}
+
+fn now_secs() -> u32 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as u32
+}
+
+fn bump(activity: &Arc<AtomicU32>) {
+    activity.store(now_secs(), Ordering::Relaxed);
+}
+
+fn main() -> io::Result<()> {
+    let args = Args::parse();
+    eprintln!(
+        "serial_bridge starting: mode={} tty={} tun={} local={} peer={} mtu={} idle_timeout={}s",
+        args.mode, args.tty, args.tun_name, args.local_ip, args.peer_ip, args.mtu, args.idle_timeout
+    );
+
+    let tun = open_tun(&args.tun_name)?;
+    configure_interface(&args.tun_name, &args.local_ip, args.prefix, args.mtu)?;
+    eprintln!("tun {} up: {}/{}", args.tun_name, args.local_ip, args.prefix);
+
+    let (serial, original_termios) = open_serial(&args.tty)?;
+    let serial_fd = serial.as_raw_fd();
+    eprintln!("serial {} opened, raw mode, 115200 (original settings saved)", args.tty);
+    eprintln!("peer expected at {}", args.peer_ip);
+
+    let _termios_guard = TermiosGuard {
+        fd: serial_fd,
+        original: original_termios,
+    };
+    let original_for_watchdog = Arc::new(Mutex::new(original_termios));
+
+    let activity = Arc::new(AtomicU32::new(now_secs()));
+    let bytes_tx = Arc::new(AtomicU32::new(0));
+    let bytes_rx = Arc::new(AtomicU32::new(0));
+    let frames_rx = Arc::new(AtomicU32::new(0));
+    let frames_bad = Arc::new(AtomicU32::new(0));
+    let mtu = args.mtu;
+
+    let (tx_chan, rx_chan) = mpsc::channel::<Vec<u8>>();
+
+    {
+        let mut tun_reader = tun.try_clone()?;
+        let tx_chan = tx_chan.clone();
+        thread::spawn(move || {
+            let mut buf = vec![0u8; mtu.max(MAX_FRAME)];
+            loop {
+                match tun_reader.read(&mut buf) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        let _ = tx_chan.send(buf[..n].to_vec());
+                    }
+                    Err(e) => {
+                        eprintln!("tun read error: {e}");
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let tx_chan = tx_chan.clone();
+        thread::spawn(move || loop {
+            thread::sleep(Duration::from_secs(3));
+            let _ = tx_chan.send(Vec::new());
+        });
+    }
+
+    {
+        let mut serial_writer = serial.try_clone()?;
+        let bytes_tx = bytes_tx.clone();
+        thread::spawn(move || {
+            for payload in rx_chan {
+                match write_frame(&mut serial_writer, &payload) {
+                    Ok(()) => {
+                        bytes_tx.fetch_add((6 + payload.len()) as u32, Ordering::Relaxed);
+                    }
+                    Err(e) => {
+                        eprintln!("serial write error: {e}");
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
+    let mut serial_reader = serial.try_clone()?;
+    let mut tun_writer = tun.try_clone()?;
+    let act2 = activity.clone();
+    let bytes_rx2 = bytes_rx.clone();
+    let frames_rx2 = frames_rx.clone();
+    let frames_bad2 = frames_bad.clone();
+    let t2 = thread::spawn(move || loop {
+        match read_frame(&mut serial_reader, &act2) {
+            Ok(FrameResult::Payload(payload)) => {
+                frames_rx2.fetch_add(1, Ordering::Relaxed);
+                bytes_rx2.fetch_add(payload.len() as u32, Ordering::Relaxed);
+                if payload.is_empty() {
+                    eprintln!("heartbeat received");
+                } else if let Err(e) = tun_writer.write_all(&payload) {
+                    eprintln!("tun write error (dropping packet): {e}");
+                }
+            }
+            Ok(FrameResult::ChecksumMismatch) => {
+                frames_bad2.fetch_add(1, Ordering::Relaxed);
+                eprintln!("frame checksum mismatch, discarding and resyncing");
+            }
+            Err(e) => {
+                eprintln!("serial read error (fatal, link likely down): {e}");
+                break;
+            }
+        }
+    });
+
+    {
+        let bytes_tx = bytes_tx.clone();
+        let bytes_rx = bytes_rx.clone();
+        let frames_rx = frames_rx.clone();
+        let frames_bad = frames_bad.clone();
+        thread::spawn(move || loop {
+            thread::sleep(Duration::from_secs(5));
+            eprintln!(
+                "stats: bytes_tx={} bytes_rx={} frames_rx={} frames_bad={}",
+                bytes_tx.load(Ordering::Relaxed),
+                bytes_rx.load(Ordering::Relaxed),
+                frames_rx.load(Ordering::Relaxed),
+                frames_bad.load(Ordering::Relaxed)
+            );
+        });
+    }
+
+    if args.idle_timeout > 0 {
+        let act3 = activity.clone();
+        let timeout = args.idle_timeout;
+        let original_for_watchdog = original_for_watchdog.clone();
+        thread::spawn(move || loop {
+            thread::sleep(Duration::from_secs(2));
+            let last = act3.load(Ordering::Relaxed);
+            let now = now_secs();
+            if now.saturating_sub(last) > timeout {
+                eprintln!("no traffic for {timeout}s, restoring terminal and exiting");
+                let original = original_for_watchdog.lock().unwrap();
+                restore_and_exit(serial_fd, &original, 0);
+            }
+        });
+    }
+
+    t2.join().ok();
+    eprintln!("main loop ended, restoring terminal via normal exit path");
+    Ok(())
+}
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ../../rust/oled/tiny_128x64/Cargo.toml
+////////////////////////////////////////////////////////////////
+
+[package]
+name = "tiny_128x64"
+version = "0.1.0"
+edition = "2021"
+description = "Pure-Rust framebuffer, drawing primitives, and Linux-I2C driver for a 128x64 SSD1306-style OLED (GME12864-70 / SH1106-ish)."
+
+[dependencies]
+anyhow = "1"
+i2cdev = "0.6"
+rand = "0.8"
+tracing = "0.1"
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ../../rust/oled/tiny_128x64/src/draw.rs
+////////////////////////////////////////////////////////////////
+
+//! Drawing primitives applied to the shared framebuffer. Kept dependency-free
+//! (no embedded-graphics) so the wire protocol from the browser can stay a
+//! tiny, obvious JSON command set.
+
+use crate::framebuffer::Framebuffer;
+
+pub fn clear(fb: &mut Framebuffer) {
+    fb.clear();
+}
+
+pub fn invert(fb: &mut Framebuffer) {
+    fb.invert();
+}
+
+pub fn noise(fb: &mut Framebuffer) {
+    fb.noise();
+}
+
+/// Bresenham line.
+pub fn line(fb: &mut Framebuffer, x0: i32, y0: i32, x1: i32, y1: i32, color: bool) {
+    let (mut x0, mut y0) = (x0, y0);
+    let dx = (x1 - x0).abs();
+    let sx = if x0 < x1 { 1 } else { -1 };
+    let dy = -(y1 - y0).abs();
+    let sy = if y0 < y1 { 1 } else { -1 };
+    let mut err = dx + dy;
+    loop {
+        fb.set_pixel(x0, y0, color);
+        if x0 == x1 && y0 == y1 {
+            break;
+        }
+        let e2 = 2 * err;
+        if e2 >= dy {
+            err += dy;
+            x0 += sx;
+        }
+        if e2 <= dx {
+            err += dx;
+            y0 += sy;
+        }
+    }
+}
+
+/// Filled circular brush stamp, used for freehand drawing.
+pub fn brush(fb: &mut Framebuffer, cx: i32, cy: i32, radius: i32, color: bool) {
+    let r2 = radius * radius;
+    for dy in -radius..=radius {
+        for dx in -radius..=radius {
+            if dx * dx + dy * dy <= r2 {
+                fb.set_pixel(cx + dx, cy + dy, color);
+            }
+        }
+    }
+}
+
+pub fn rect(fb: &mut Framebuffer, x0: i32, y0: i32, x1: i32, y1: i32, color: bool, filled: bool) {
+    if filled {
+        for y in y0.min(y1)..=y0.max(y1) {
+            for x in x0.min(x1)..=x0.max(x1) {
+                fb.set_pixel(x, y, color);
+            }
+        }
+    } else {
+        line(fb, x0, y0, x1, y0, color);
+        line(fb, x0, y1, x1, y1, color);
+        line(fb, x0, y0, x0, y1, color);
+        line(fb, x1, y0, x1, y1, color);
+    }
+}
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ../../rust/oled/tiny_128x64/src/framebuffer.rs
+////////////////////////////////////////////////////////////////
+
+//! In-memory framebuffer for a 128x64 1-bit OLED.
+//!
+//! Storage layout mirrors the SSD1306 "page addressing" mode used in the
+//! bring-up shell scripts: 8 pages of 128 bytes, each byte a vertical
+//! 8-pixel column strip (bit 0 = top row of the page).
+
+pub const WIDTH: usize = 128;
+pub const HEIGHT: usize = 64;
+pub const PAGES: usize = HEIGHT / 8;
+
+#[derive(Clone)]
+pub struct Framebuffer {
+    pub pages: [[u8; WIDTH]; PAGES],
+}
+
+impl Framebuffer {
+    pub fn new() -> Self {
+        Framebuffer {
+            pages: [[0u8; WIDTH]; PAGES],
+        }
+    }
+
+    pub fn clear(&mut self) {
+        for p in self.pages.iter_mut() {
+            p.fill(0);
+        }
+    }
+
+    pub fn fill(&mut self) {
+        for p in self.pages.iter_mut() {
+            p.fill(0xff);
+        }
+    }
+
+    pub fn set_pixel(&mut self, x: i32, y: i32, on: bool) {
+        if x < 0 || y < 0 || x as usize >= WIDTH || y as usize >= HEIGHT {
+            return;
+        }
+        let (x, y) = (x as usize, y as usize);
+        let page = y / 8;
+        let bit = y % 8;
+        if on {
+            self.pages[page][x] |= 1 << bit;
+        } else {
+            self.pages[page][x] &= !(1 << bit);
+        }
+    }
+
+    pub fn get_pixel(&self, x: usize, y: usize) -> bool {
+        if x >= WIDTH || y >= HEIGHT {
+            return false;
+        }
+        let page = y / 8;
+        let bit = y % 8;
+        (self.pages[page][x] >> bit) & 1 == 1
+    }
+
+    pub fn invert(&mut self) {
+        for p in self.pages.iter_mut() {
+            for b in p.iter_mut() {
+                *b = !*b;
+            }
+        }
+    }
+
+    pub fn noise(&mut self) {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        for p in self.pages.iter_mut() {
+            for b in p.iter_mut() {
+                *b = rng.gen();
+            }
+        }
+    }
+
+    /// Raw bytes in the exact page-major shape the panel wants:
+    /// 8 pages * 128 bytes = 1024 bytes total.
+    pub fn raw_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::with_capacity(WIDTH * PAGES);
+        for p in self.pages.iter() {
+            out.extend_from_slice(p);
+        }
+        out
+    }
+
+    /// Load a framebuffer from raw page-major bytes (used by /upload).
+    pub fn from_raw_bytes(bytes: &[u8]) -> Option<Self> {
+        if bytes.len() != WIDTH * PAGES {
+            return None;
+        }
+        let mut fb = Framebuffer::new();
+        for page in 0..PAGES {
+            fb.pages[page].copy_from_slice(&bytes[page * WIDTH..(page + 1) * WIDTH]);
+        }
+        Some(fb)
+    }
+
+    /// Row-major ASCII PBM (P1), handy for a quick /screenshot in a browser.
+    pub fn to_pbm(&self) -> Vec<u8> {
+        let mut out = format!("P1\n{} {}\n", WIDTH, HEIGHT).into_bytes();
+        for y in 0..HEIGHT {
+            let mut row = String::with_capacity(WIDTH * 2);
+            for x in 0..WIDTH {
+                row.push(if self.get_pixel(x, y) { '1' } else { '0' });
+                row.push(' ');
+            }
+            row.push('\n');
+            out.extend_from_slice(row.as_bytes());
+        }
+        out
+    }
+}
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ../../rust/oled/tiny_128x64/src/lib.rs
+////////////////////////////////////////////////////////////////
+
+//! Pure-Rust core for a 128x64 1-bit OLED (SSD1306-style command set):
+//! an in-memory framebuffer, drawing primitives, and a Linux-I2C driver.
+//!
+//! Deliberately has no async runtime, no web framework, no dependency on
+//! anything beyond `i2cdev` -- so this crate alone is what you'd
+//! cross-compile if you ever want the panel driven from something other
+//! than `axum_serve` (a CLI tool, a different frontend, etc).
+
+pub mod draw;
+pub mod framebuffer;
+pub mod oled;
+
+pub use framebuffer::Framebuffer;
+pub use oled::{Oled, OledHandle};
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ../../rust/oled/tiny_128x64/src/oled.rs
+////////////////////////////////////////////////////////////////
+
+//! Direct Linux-I2C driver for the SSD1306-style panel.
+//!
+//! The command byte sequence here is copied verbatim from the shell scripts
+//! that were already proven to work against the real panel (`oled_white.sh`
+//! / `oled_black.sh`), so this should "just work" the same way.
+
+use crate::framebuffer::{Framebuffer, PAGES};
+use anyhow::{Context, Result};
+use i2cdev::core::I2CDevice;
+use i2cdev::linux::LinuxI2CDevice;
+
+const CMD_BYTE: u8 = 0x00;
+const DATA_BYTE: u8 = 0x40;
+/// Matches the 16-byte chunking used in the bring-up scripts
+/// (`i2ctransfer -y "$BUS" w17@"$ADDR" 0x40 <16 bytes>`).
+const CHUNK: usize = 16;
+
+pub struct Oled {
+    dev: LinuxI2CDevice,
+}
+
+impl Oled {
+    pub fn new(bus: &str, addr: u16) -> Result<Self> {
+        let dev = LinuxI2CDevice::new(bus, addr)
+            .with_context(|| format!("opening I2C device {} at {:#04x}", bus, addr))?;
+        let mut oled = Oled { dev };
+        oled.init()?;
+        Ok(oled)
+    }
+
+    fn cmd(&mut self, byte: u8) -> Result<()> {
+        self.dev
+            .write(&[CMD_BYTE, byte])
+            .context("i2c command write failed")
+    }
+
+    /// Exact init sequence from the working `oled_white.sh` / `oled_black.sh` tests.
+    fn init(&mut self) -> Result<()> {
+        const SEQ: &[u8] = &[
+            0xae, 0xd5, 0x80, 0xa8, 0x3f, 0xd3, 0x00, 0x40, 0x8d, 0x14, 0x20, 0x02, 0xa1, 0xc8,
+            0xda, 0x12, 0x81, 0xcf, 0xd9, 0xf1, 0xdb, 0x40, 0xa4, 0xa6, 0xaf,
+        ];
+        for &b in SEQ {
+            self.cmd(b)?;
+        }
+        Ok(())
+    }
+
+    pub fn set_power(&mut self, on: bool) -> Result<()> {
+        self.cmd(if on { 0xaf } else { 0xae })
+    }
+
+    pub fn set_invert(&mut self, inverted: bool) -> Result<()> {
+        self.cmd(if inverted { 0xa7 } else { 0xa6 })
+    }
+
+    pub fn all_pixels_on(&mut self, on: bool) -> Result<()> {
+        self.cmd(if on { 0xa5 } else { 0xa4 })
+    }
+
+    /// Push the full framebuffer to the panel, one page at a time, in
+    /// CHUNK-byte writes -- same shape as the validated bring-up scripts.
+    pub fn flush(&mut self, fb: &Framebuffer) -> Result<()> {
+        for page in 0..PAGES {
+            self.cmd(0xb0 + page as u8)?;
+            self.cmd(0x00)?; // lower column start address
+            self.cmd(0x10)?; // upper column start address
+
+            let row = &fb.pages[page];
+            for chunk in row.chunks(CHUNK) {
+                let mut buf = Vec::with_capacity(chunk.len() + 1);
+                buf.push(DATA_BYTE);
+                buf.extend_from_slice(chunk);
+                self.dev.write(&buf).context("i2c data write failed")?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Wraps `Oled` so the server still boots (headless) when no physical panel
+/// is present -- handy for dev/test on a machine without the OrangeCrab.
+pub enum OledHandle {
+    Real(Oled),
+    None,
+}
+
+impl OledHandle {
+    pub fn open(bus: &str, addr: u16) -> Self {
+        match Oled::new(bus, addr) {
+            Ok(o) => {
+                tracing::info!("OLED opened on {} @ {:#04x}", bus, addr);
+                OledHandle::Real(o)
+            }
+            Err(e) => {
+                tracing::warn!("no OLED available ({e}); running headless");
+                OledHandle::None
+            }
+        }
+    }
+
+    pub fn flush(&mut self, fb: &Framebuffer) {
+        if let OledHandle::Real(o) = self {
+            if let Err(e) = o.flush(fb) {
+                tracing::warn!("OLED flush failed: {e}");
+            }
+        }
+    }
+}
 
 

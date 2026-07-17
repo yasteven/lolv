@@ -1,7 +1,7 @@
 ================================================================
 LOLV MODIFIED SCRIPTS / GATEWARE / CONFIGS
-ROOT: /mnt/storage/see/1-c0d3/vhdl/lolv
-GENERATED: 2026-07-04T12:59:30-07:00
+ROOT: /home/seejn/1tb/see/1-c0d3/vhdl/lolv
+GENERATED: 2026-07-16T18:49:40-07:00
 ================================================================
 
 
@@ -923,652 +923,93 @@ class Embedfire_rise_pro(Board):
 
 
 ////////////////////////////////////////////////////////////////
-// FILE: ./buildroot/board/litex_vexriscv/linux.config
-////////////////////////////////////////////////////////////////
-
-CONFIG_SECTION_MISMATCH_WARN_ONLY=y
-CONFIG_EXPERT=y
-
-# Architecture
-CONFIG_ARCH_DEFCONFIG="arch/riscv/configs/defconfig"
-CONFIG_NONPORTABLE=y
-CONFIG_ARCH_RV32I=y
-CONFIG_RISCV_ISA_M=y
-CONFIG_RISCV_ISA_A=y
-CONFIG_RISCV_ISA_C=n
-CONFIG_SIFIVE_PLIC=y
-CONFIG_FPU=n
-CONFIG_SMP=y
-CONFIG_STRICT_KERNEL_RWX=n
-CONFIG_EFI=n
-CONFIG_HVC_RISCV_SBI=y
-CONFIG_NONPORTABLE=y
-CONFIG_HZ_100=y
-
-CONFIG_BLK_DEV_INITRD=y
-CONFIG_INITRAMFS_SOURCE=""
-CONFIG_RD_GZIP=y
-CONFIG_RD_BZIP2=y
-CONFIG_RD_LZMA=y
-CONFIG_RD_XZ=y
-CONFIG_RD_LZO=y
-CONFIG_RD_LZ4=y
-
-# FPGA / SoC
-CONFIG_FPGA=y
-CONFIG_FPGA_MGR_LITEX=y
-CONFIG_LITEX_SOC_CONTROLLER=y
-CONFIG_LITEX_SUBREG_SIZE=4
-
-# Time
-CONFIG_PRINTK_TIME=y
-
-# Clocking
-CONFIG_COMMON_CLK=y
-CONFIG_COMMON_CLK_LITEX=y
-
-# Interrupts
-CONFIG_IRQCHIP=y
-CONFIG_OF_IRQ=y
-CONFIG_HANDLE_DOMAIN_IRQ=y
-CONFIG_LITEX_VEXRISCV_INTC=y
-
-# Ethernet
-CONFIG_NET=y
-CONFIG_PACKET=y
-CONFIG_PACKET_DIAG=y
-CONFIG_INET=y
-CONFIG_PPP=y
-CONFIG_PPP_ASYNC=y
-CONFIG_NETDEVICES=y
-CONFIG_NET_VENDOR_LITEX=y
-CONFIG_LITEX_LITEETH=y
-
-# Serial
-CONFIG_SERIAL_EARLYCON_RISCV_SBI=y
-CONFIG_SERIAL_LITEUART=y
-CONFIG_SERIAL_LITEUART_CONSOLE=y
-
-# Console / TTY
-# CONFIG_VT is not set
-# CONFIG_UNIX98_PTYS is not set
-# CONFIG_LEGACY_PTYS is not set
-# CONFIG_FRAMEBUFFER_CONSOLE is not set
-# CONFIG_LOGO is not set
-
-# GPIO
-CONFIG_GPIO_SYSFS=y
-CONFIG_GPIOLIB=y
-CONFIG_GPIO_LITEX=y
-
-# PWM
-CONFIG_PWM=y
-CONFIG_PWM_LITEX=y
-
-# SPI
-CONFIG_SPI=y
-CONFIG_SPI_LITESPI=y
-CONFIG_SPI_SPIDEV=y
-
-# I2C
-CONFIG_I2C=y
-CONFIG_I2C_LITEX=y
-CONFIG_I2C_CHARDEV=y
-
-# Hardware monitoring
-CONFIG_HWMON=y
-CONFIG_SENSORS_LITEX_HWMON=y
-
-# Framebuffer
-CONFIG_FB=y
-CONFIG_FB_SIMPLE=y
-CONFIG_DRM=y
-CONFIG_DRM_LITEVIDEO=y
-
-# Flash
-CONFIG_MTD=y
-CONFIG_MTD_SPI_NOR=y
-CONFIG_SPI_FLASH_LITEX=y
-
-# MMC
-CONFIG_MMC=y
-CONFIG_MMC_SPI=y
-CONFIG_MMC_LITEX=y
-
-CONFIG_EXT2_FS=y
-CONFIG_EXT3_FS=y
-CONFIG_EXT4_FS=y
-
-# .config in kernel
-CONFIG_IKCONFIG=y
-CONFIG_IKCONFIG_PROC=y
-
-# Filesystem
-CONFIG_FAT_FS=y
-CONFIG_MSDOS_FS=y
-CONFIG_MSDOS_PARTITION=y
-CONFIG_VFAT_FS=y
-CONFIG_FAT_DEFAULT_CODEPAGE=437
-CONFIG_FAT_DEFAULT_IOCHARSET="iso8859-1"
-CONFIG_NCPFS_SMALLDOS=y
-CONFIG_NLS=y
-CONFIG_NLS_CODEPAGE_437=y
-CONFIG_NLS_ASCII=y
-CONFIG_NLS_ISO8859_1=y
-CONFIG_TMPFS=y
-
-# Networking (added for a TUN-based bridge over the serial console link)
-CONFIG_UNIX=y
-CONFIG_TUN=y
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./buildroot/board/litex_vexriscv/linux-fpu.config
-////////////////////////////////////////////////////////////////
-
-CONFIG_FPU=y
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./buildroot/board/litex_vexriscv/linux-nfsroot.config
-////////////////////////////////////////////////////////////////
-
-CONFIG_IP_PNP=y
-# CONFIG_IP_PNP_DHCP is not set
-# CONFIG_IP_PNP_BOOTP is not set
-# CONFIG_IP_PNP_RARP is not set
-CONFIG_NETWORK_FILESYSTEMS=y
-CONFIG_NFS_FS=y
-CONFIG_NFS_V3=y
-CONFIG_ROOT_NFS=y
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./buildroot/board/litex_vexriscv/post-image.sh
-////////////////////////////////////////////////////////////////
-
-#!/bin/bash
-
-set -e
-
-BOARD_DIR="$(dirname $0)"
-GENIMAGE_CFG="${BOARD_DIR}/genimage.cfg"
-GENIMAGE_TMP="${BUILD_DIR}/genimage.tmp"
-
-LINUX_ON_VEXRISCV_OUT_DIR=$BR2_EXTERNAL_LITEX_VEXRISCV_PATH/../images
-DST_DTB=$LINUX_ON_VEXRISCV_OUT_DIR/rv32.dtb
-DST_OPENSBI=$LINUX_ON_VEXRISCV_OUT_DIR/opensbi.bin
-DST_IMAGE=$LINUX_ON_VEXRISCV_OUT_DIR/Image
-DST_ROOTFS_CPIO=$LINUX_ON_VEXRISCV_OUT_DIR/rootfs.cpio
-DST_ROOTFS_CPIO_GZ=$LINUX_ON_VEXRISCV_OUT_DIR/rootfs.cpio.gz
-DST_ROOTFS_EXT4=$LINUX_ON_VEXRISCV_OUT_DIR/rootfs.ext4
-
-rm -f $DST_OPENSBI $DST_ROOTFS_CPIO $DST_ROOTFS_CPIO_GZ $DST_ROOTFS_EXT4 $DST_IMAGE
-ln -s $BINARIES_DIR/fw_jump.bin $DST_OPENSBI
-ln -s $BINARIES_DIR/Image $DST_IMAGE
-ln -s $BINARIES_DIR/rootfs.cpio $DST_ROOTFS_CPIO
-if [ -e $BINARIES_DIR/rootfs.cpio.gz ]; then
-	ln -s $BINARIES_DIR/rootfs.cpio.gz $DST_ROOTFS_CPIO_GZ
-else
-	gzip -c $BINARIES_DIR/rootfs.cpio > $DST_ROOTFS_CPIO_GZ
-fi
-ln -s $BINARIES_DIR/rootfs.ext4 $DST_ROOTFS_EXT4
-
-if [ ! -e $DST_DTB ]; then
-	echo ""
-	echo "Warning: missing file $DST_DTB"
-	echo "a dummy file will be created"
-	echo "must be replaced manually by required rv32.dtb"
-	echo ""
-	touch $DST_OPENSBI
-fi
-
-if [ -e $DST_DTB ]; then
-	mkdir -p "${GENIMAGE_TMP}"
-	DTB_DTS=${GENIMAGE_TMP}/rv32.dts
-	dtc -I dtb -O dts -o $DTB_DTS $DST_DTB
-	INITRD_START=$(sed -n -E 's/.*linux,initrd-start[[:space:]]*=[[:space:]]*<([^>]+)>.*/\1/p' $DTB_DTS | head -n 1)
-	if [ -n "$INITRD_START" ]; then
-		INITRD_SIZE=$(stat -c%s $DST_ROOTFS_CPIO_GZ)
-		INITRD_END=$(printf "0x%x" $((INITRD_START + INITRD_SIZE)))
-		sed -i -E "s/(linux,initrd-end[[:space:]]*=[[:space:]]*<)0x[0-9a-fA-F]+(>)/\1${INITRD_END}\2/" $DTB_DTS
-		dtc -I dts -O dtb -o $DST_DTB $DTB_DTS
-	fi
-fi
-
-# Pass an empty rootpath. genimage makes a full copy of the given rootpath to
-# ${GENIMAGE_TMP}/root so passing TARGET_DIR would be a waste of time and disk
-# space. We don't rely on genimage to build the rootfs image, just to insert a
-# pre-built one in the disk image.
-
-trap 'rm -rf "${ROOTPATH_TMP}"' EXIT
-ROOTPATH_TMP="$(mktemp -d)"
-
-rm -rf "${GENIMAGE_TMP}"
-
-genimage \
-    --rootpath "${ROOTPATH_TMP}"   \
-    --tmppath "${GENIMAGE_TMP}"    \
-    --inputpath "${LINUX_ON_VEXRISCV_OUT_DIR}"  \
-    --outputpath "${LINUX_ON_VEXRISCV_OUT_DIR}" \
-    --config "${GENIMAGE_CFG}"
-
-exit $?
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./buildroot/board/litex_vexriscv_usbhost/linux.config
-////////////////////////////////////////////////////////////////
-
-CONFIG_SECTION_MISMATCH_WARN_ONLY=y
-
-# Architecture
-CONFIG_ARCH_DEFCONFIG="arch/riscv/configs/defconfig"
-CONFIG_NONPORTABLE=y
-CONFIG_ARCH_RV32I=y
-CONFIG_RISCV_ISA_M=y
-CONFIG_RISCV_ISA_A=y
-CONFIG_RISCV_ISA_C=n
-CONFIG_SIFIVE_PLIC=y
-CONFIG_FPU=n
-CONFIG_SMP=y
-CONFIG_STRICT_KERNEL_RWX=n
-CONFIG_EFI=n
-CONFIG_HVC_RISCV_SBI=y
-CONFIG_NONPORTABLE=y
-
-CONFIG_BLK_DEV_INITRD=y
-CONFIG_INITRAMFS_SOURCE=""
-CONFIG_RD_GZIP=y
-CONFIG_RD_BZIP2=y
-CONFIG_RD_LZMA=y
-CONFIG_RD_XZ=y
-CONFIG_RD_LZO=y
-CONFIG_RD_LZ4=y
-
-# FPGA / SoC
-CONFIG_FPGA=y
-CONFIG_FPGA_MGR_LITEX=y
-CONFIG_LITEX_SOC_CONTROLLER=y
-CONFIG_LITEX_SUBREG_SIZE=4
-
-# Time
-CONFIG_PRINTK_TIME=y
-
-# Clocking
-CONFIG_COMMON_CLK=y
-CONFIG_COMMON_CLK_LITEX=y
-
-# Interrupts
-CONFIG_IRQCHIP=y
-CONFIG_OF_IRQ=y
-CONFIG_HANDLE_DOMAIN_IRQ=y
-CONFIG_LITEX_VEXRISCV_INTC=y
-
-# Ethernet
-CONFIG_NET=y
-CONFIG_PACKET=y
-CONFIG_PACKET_DIAG=y
-CONFIG_INET=y
-CONFIG_PPP=y
-CONFIG_PPP_ASYNC=y
-CONFIG_NETDEVICES=y
-CONFIG_NET_VENDOR_LITEX=y
-CONFIG_LITEX_LITEETH=y
-
-# Serial
-CONFIG_SERIAL_EARLYCON_RISCV_SBI=y
-CONFIG_SERIAL_LITEUART=y
-CONFIG_SERIAL_LITEUART_CONSOLE=y
-
-# GPIO
-CONFIG_GPIO_SYSFS=y
-CONFIG_GPIOLIB=y
-CONFIG_GPIO_LITEX=y
-
-# PWM
-CONFIG_PWM=y
-CONFIG_PWM_LITEX=y
-
-# SPI
-CONFIG_SPI=y
-CONFIG_SPI_LITESPI=y
-CONFIG_SPI_SPIDEV=y
-
-# I2C
-CONFIG_I2C=y
-CONFIG_I2C_LITEX=y
-CONFIG_I2C_CHARDEV=y
-
-# Hardware monitoring
-CONFIG_HWMON=y
-CONFIG_SENSORS_LITEX_HWMON=y
-
-# Framebuffer
-CONFIG_FB=y
-CONFIG_FB_SIMPLE=y
-CONFIG_FRAMEBUFFER_CONSOLE=y
-CONFIG_FRAMEBUFFER_CONSOLE_DETECT_PRIMARY=y
-CONFIG_LOGO=y
-CONFIG_DRM=y
-CONFIG_DRM_LITEVIDEO=y
-
-# Flash
-CONFIG_MTD=y
-CONFIG_MTD_SPI_NOR=y
-CONFIG_SPI_FLASH_LITEX=y
-
-# MMC
-CONFIG_MMC=y
-CONFIG_MMC_SPI=y
-CONFIG_MMC_LITEX=y
-
-CONFIG_EXT2_FS=y
-CONFIG_EXT3_FS=y
-CONFIG_EXT4_FS=y
-
-# .config in kernel
-CONFIG_IKCONFIG=y
-CONFIG_IKCONFIG_PROC=y
-
-# Filesystem
-CONFIG_FAT_FS=y
-CONFIG_MSDOS_FS=y
-CONFIG_MSDOS_PARTITION=y
-CONFIG_VFAT_FS=y
-CONFIG_FAT_DEFAULT_CODEPAGE=437
-CONFIG_FAT_DEFAULT_IOCHARSET="iso8859-1"
-CONFIG_NCPFS_SMALLDOS=y
-CONFIG_NLS=y
-CONFIG_NLS_CODEPAGE_437=y
-CONFIG_NLS_ASCII=y
-CONFIG_NLS_ISO8859_1=y
-CONFIG_TMPFS=y
-
-# USB
-CONFIG_SOUND=y
-CONFIG_SND=y
-CONFIG_SND_USB_AUDIO=y
-CONFIG_USB_HIDDEV=y
-CONFIG_USB_LED_TRIG=y
-CONFIG_USB=y
-CONFIG_USB_ANNOUNCE_NEW_DEVICES=y
-CONFIG_USB_OHCI_HCD=y
-CONFIG_USB_OHCI_HCD_PLATFORM=y
-CONFIG_USB_STORAGE=y
-CONFIG_USB_SERIAL=y
-CONFIG_USB_SERIAL_FTDI_SIO=y
-CONFIG_USB_GADGET=y
-CONFIG_USB_AUDIO=y
-
-CONFIG_SCSI=y
-CONFIG_BLK_DEV_SD=y
-
-CONFIG_INPUT_MOUSEDEV=y
-CONFIG_INPUT_MOUSEDEV_PSAUX=y
-CONFIG_INPUT_EVDEV=y
-
-# USB wireless support
-CONFIG_WLAN=y
-CONFIG_WIRELESS=y
-CONFIG_USB_NET_DRIVERS=y
-CONFIG_WLAN_VENDOR_REALTEK=y
-CONFIG_RTL8XXXU=y
-CONFIG_MAC80211=y
-CONFIG_CRYPTO=y
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./buildroot/Config.in
-////////////////////////////////////////////////////////////////
-
-source "$BR2_EXTERNAL_LITEX_VEXRISCV_PATH/package/dhrystone-opt/Config.in"
-
-config BR2_PACKAGE_VEXRISCV_AES
-	bool "VexRiscv AES custom instruction"
-	help
-	  Enable VexRiscv AES custom instruction usage in openssl and dropbear
-
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./buildroot/configs/litex_vexriscv_defconfig
-////////////////////////////////////////////////////////////////
-
-# Target options
-BR2_riscv=y
-BR2_RISCV_32=y
-
-# Instruction Set Extensions
-BR2_riscv_custom=y
-# Backward compat (buildroot 2023.02.5 LTS).
-BR2_RISCV_ISA_CUSTOM_RVM=y
-BR2_RISCV_ISA_CUSTOM_RVA=y
-BR2_RISCV_ISA_CUSTOM_RVC=n
-# make.py enables FPU/hard-float options in the generated board defconfig.
-#BR2_RISCV_ISA_CUSTOM_RVF=y
-#BR2_RISCV_ISA_CUSTOM_RVD=y
-# Since commit cbd91e89e4 (2023-08-18 / 2023.11).
-BR2_RISCV_ISA_RVM=y
-BR2_RISCV_ISA_RVA=y
-BR2_RISCV_ISA_RVC=n
-# make.py enables FPU/hard-float options in the generated board defconfig.
-#BR2_RISCV_ISA_RVF=y
-#BR2_RISCV_ISA_RVD=y
-BR2_RISCV_ABI_ILP32=y
-
-# Patches
-BR2_GLOBAL_PATCH_DIR="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/patches"
-
-# GCC
-BR2_GCC_VERSION_13_X=y
-
-# System
-BR2_TARGET_GENERIC_GETTY=y
-BR2_TARGET_GENERIC_GETTY_PORT="console"
-
-# Filesystem
-BR2_TARGET_ROOTFS_CPIO=y
-BR2_TARGET_ROOTFS_CPIO_GZIP=y
-BR2_TARGET_ROOTFS_EXT2=y
-BR2_TARGET_ROOTFS_EXT2_4=y
-
-# Image
-BR2_ROOTFS_POST_IMAGE_SCRIPT="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/board/litex_vexriscv/post-image.sh"
-
-# Kernel header version
-BR2_PACKAGE_HOST_LINUX_HEADERS_CUSTOM_6_9=y
-
-# Kernel (mainline + patches set)
-BR2_LINUX_KERNEL=y
-BR2_LINUX_KERNEL_CUSTOM_VERSION=y
-BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE="6.9"
-BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y
-BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/board/litex_vexriscv/linux.config"
-BR2_LINUX_KERNEL_IMAGE=y
-
-# Bootloader (opensbi)
-BR2_TARGET_OPENSBI=y
-BR2_TARGET_OPENSBI_CUSTOM_GIT=y
-BR2_TARGET_OPENSBI_CUSTOM_REPO_URL="https://github.com/litex-hub/opensbi.git"
-BR2_TARGET_OPENSBI_CUSTOM_REPO_VERSION="1.3.1-linux-on-litex-vexriscv"
-BR2_TARGET_OPENSBI_PLAT="litex/vexriscv"
-BR2_TARGET_OPENSBI_INSTALL_DYNAMIC_IMG=n
-
-# Rootfs customisation
-BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/board/litex_vexriscv/rootfs_overlay"
-
-# Required tools to create the SD image
-BR2_PACKAGE_HOST_DOSFSTOOLS=y
-BR2_PACKAGE_HOST_GENIMAGE=y
-BR2_PACKAGE_HOST_MTOOLS=y
-
-# Extra packages
-BR2_PACKAGE_PPPD=y
-#BR2_PACKAGE_DHRYSTONE_OPT=y
-#BR2_PACKAGE_MICROPYTHON=y
-#BR2_PACKAGE_SPIDEV_TEST=y
-#BR2_PACKAGE_MTD=y
-#BR2_PACKAGE_MTD_JFFS_UTILS=y
-
-# Crypto
-#BR2_PACKAGE_LIBATOMIC_OPS_ARCH_SUPPORTS=y
-#BR2_PACKAGE_LIBATOMIC_OPS=y
-#BR2_PACKAGE_OPENSSL=y
-#BR2_PACKAGE_LIBRESSL=y
-#BR2_PACKAGE_LIBRESSL_BIN=y
-#BR2_PACKAGE_HAVEGED=y
-# make.py enables hardware AES options in the generated board defconfig.
-#BR2_PACKAGE_VEXRISCV_AES=y
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./buildroot/external.mk
-////////////////////////////////////////////////////////////////
-
-include $(sort $(wildcard $(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/package/*/*.mk))
-
-ifeq ($(BR2_PACKAGE_VEXRISCV_AES),y)
-LIBOPENSSL_CFLAGS+=-DVEXRISCV_AES
-LIBRESSL_CONF_OPTS+=-DVEXRISCV_AES=ON
-endif
-
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./buildroot/package/dhrystone-opt/Config.in
-////////////////////////////////////////////////////////////////
-
-config BR2_PACKAGE_DHRYSTONE_OPT
-	bool "dhrystone-opt"
-	help
-	  easy-to-use integer benchmark, with optimisations
-
-	  http://www.netlib.org/benchmark/dhry-c
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./buildroot/package/dhrystone-opt/dhrystone-opt.mk
-////////////////////////////////////////////////////////////////
-
-################################################################################
-#
-# dhrystone-opt
-#
-################################################################################
-
-DHRYSTONE_OPT_VERSION = 2
-DHRYSTONE_OPT_SOURCE = dhry-c
-DHRYSTONE_OPT_SITE = http://www.netlib.org/benchmark
-
-define DHRYSTONE_OPT_EXTRACT_CMDS
-	(cd $(@D) && $(SHELL) $(DHRYSTONE_OPT_DL_DIR)/$($(PKG)_SOURCE))
-	$(Q)cp $(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/package/dhrystone-opt/Makefile $(@D)/
-	$(Q)cp $(BR2_EXTERNAL_LITEX_VEXRISCV_PATH)/package/dhrystone-opt/*.S $(@D)/
-endef
-
-define DHRYSTONE_OPT_BUILD_CMDS
-	$(TARGET_CONFIGURE_OPTS) $(MAKE) -C $(@D)
-endef
-
-define DHRYSTONE_OPT_INSTALL_TARGET_CMDS
-	$(INSTALL) -D $(@D)/dhrystone $(TARGET_DIR)/usr/bin/dhrystone-opt
-endef
-
-$(eval $(generic-package))
-
-
-////////////////////////////////////////////////////////////////
 // FILE: ./cat_src.sh
 ////////////////////////////////////////////////////////////////
 
 #!/usr/bin/env bash
 set -euo pipefail
 
-# cat_src.sh
-#
-# Aggregate the lolv/ project into review-friendly text dumps.
-#
-# Run from:
-#   $WORKROOT/lolv
-#
-# Outputs:
-#   reports/cat_lolv_readmes.txt
-#   reports/cat_lolv_modified_scripts.txt
-#   reports/cat_lolv_all.txt
-
 ROOT="$(pwd)"
 OUT_DIR="./reports"
+OLED_ROOT="$(readlink -f ../../rust/oled)"
 
 DOCS_OUT="$OUT_DIR/cat_lolv_readmes.txt"
 SCRIPTS_OUT="$OUT_DIR/cat_lolv_modified_scripts.txt"
+OLED_OUT="$OUT_DIR/cat_rust_oled.txt"
 ALL_OUT="$OUT_DIR/cat_lolv_all.txt"
 
 mkdir -p "$OUT_DIR"
 
 : > "$DOCS_OUT"
 : > "$SCRIPTS_OUT"
+: > "$OLED_OUT"
 : > "$ALL_OUT"
 
 write_header() {
     local out_file="$1"
     local title="$2"
+    local root="$3"
 
     {
         echo "================================================================"
         echo "$title"
-        echo "ROOT: $ROOT"
+        echo "ROOT: $root"
         echo "GENERATED: $(date -Is)"
         echo "================================================================"
         echo
     } >> "$out_file"
 }
 
-append_file_hash() {
+append_hash_file() {
     local out_file="$1"
-    local file_path="$2"
+    local display_path="$2"
+    local real_path="$3"
 
     {
         echo
         echo "################################################################"
-        echo "# FILE: $file_path"
+        echo "# FILE: $display_path"
         echo "################################################################"
         echo
-        cat "$file_path"
+        cat "$real_path"
         echo
     } >> "$out_file"
 }
 
-append_file_slash() {
+append_slash_file() {
     local out_file="$1"
-    local file_path="$2"
+    local display_path="$2"
+    local real_path="$3"
 
     {
         echo
         echo "////////////////////////////////////////////////////////////////"
-        echo "// FILE: $file_path"
+        echo "// FILE: $display_path"
         echo "////////////////////////////////////////////////////////////////"
         echo
-        cat "$file_path"
+        cat "$real_path"
         echo
     } >> "$out_file"
 }
 
-write_header "$DOCS_OUT" "LOLV README / DOCS"
-write_header "$SCRIPTS_OUT" "LOLV MODIFIED SCRIPTS / GATEWARE / CONFIGS"
+write_header "$DOCS_OUT" "LOLV README / DOCS" "$ROOT"
+write_header "$SCRIPTS_OUT" "LOLV MODIFIED SCRIPTS / GATEWARE / CONFIGS" "$ROOT"
+write_header "$OLED_OUT" "RUST OLED WORKSPACE SOURCE / INFO" "$OLED_ROOT"
 
 echo "== collecting lolv README/docs =="
 
 find . \
   -path './.git' -prune -o \
   -path './build' -prune -o \
+  -path './buildroot' -prune -o \
   -path './images' -prune -o \
+  -path './target' -prune -o \
   -path './__pycache__' -prune -o \
-  -path './reports/cat_*' -prune -o \
+  -path './reports' -prune -o \
   -type f \( -name '*.md' -o -name '*.txt' \) -print \
 | sort \
-| while read -r doc_file; do
-    append_file_hash "$DOCS_OUT" "$doc_file"
+| while IFS= read -r file; do
+    append_hash_file "$DOCS_OUT" "$file" "$file"
 done
 
 echo "wrote $DOCS_OUT"
@@ -1576,37 +1017,69 @@ echo "wrote $DOCS_OUT"
 echo
 echo "== collecting lolv modified scripts/gateware/configs =="
 
-{
-  find . \
-    -path './.git' -prune -o \
-    -path './build' -prune -o \
-    -path './images' -prune -o \
-    -path './__pycache__' -prune -o \
-    -path './reports' -prune -o \
-    -type f \( \
+find . \
+  -path './.git' -prune -o \
+  -path './build' -prune -o \
+  -path './buildroot' -prune -o \
+  -path './images' -prune -o \
+  -path './target' -prune -o \
+  -path './__pycache__' -prune -o \
+  -path './reports' -prune -o \
+  -type f \( \
       -name '*.py' -o \
       -name '*.sh' -o \
+      -name '*.c' -o \
+      -name '*.h' -o \
       -name '*.vhd' -o \
       -name '*.vhdl' -o \
       -name '*.v' -o \
       -name '*.dts' -o \
       -name '*.dtsi' -o \
       -name '*.json' -o \
+      -name '*.toml' -o \
       -name '*.config' -o \
       -name '*defconfig' -o \
       -name 'Config.in' -o \
       -name '*.mk' \
-    \) -print
-} \
+    \) -print \
 | sort \
-| while read -r src_file; do
-    append_file_slash "$SCRIPTS_OUT" "$src_file"
+| while IFS= read -r file; do
+    append_slash_file "$SCRIPTS_OUT" "$file" "$file"
 done
 
 echo "wrote $SCRIPTS_OUT"
 
 echo
-echo "== writing combined lolv aggregate =="
+echo "== collecting ../../rust/oled source and info =="
+
+if [[ ! -d "$OLED_ROOT" ]]; then
+    echo "ERROR: missing OLED workspace: $OLED_ROOT" >&2
+    exit 1
+fi
+
+find "$OLED_ROOT" \
+  -path "$OLED_ROOT/.git" -prune -o \
+  -path '*/target' -prune -o \
+  -path '*/.git' -prune -o \
+  -path '*/node_modules' -prune -o \
+  -type f \( \
+      -path '*/src/*.rs' -o \
+      -path '*/src/**/*.rs' -o \
+      -path '*/info/*' -o \
+      -name 'Cargo.toml' -o \
+      -name 'Cargo.lock' -o \
+      -name 'rust-toolchain.toml' -o \
+      -name '*.json' -o \
+      -name 'README.md' -o \
+      -name '*.md' \
+    \) -print \
+| sort \
+| while IFS= read -r file; do
+    rel="${file#"$OLED_ROOT"/}"
+    append_slash_file "$OLED_OUT" "../../rust/oled/$rel" "$file"
+done
+
+echo "wrote $OLED_OUT"
 
 {
     echo "================================================================"
@@ -1616,36 +1089,556 @@ echo "== writing combined lolv aggregate =="
     echo "================================================================"
     echo
     echo "Included sections:"
-    echo "  1. README/docs"
-    echo "  2. Modified scripts/gateware/configs"
+    echo "  1. LOLV README/docs"
+    echo "  2. LOLV modified scripts/gateware/configs"
+    echo "  3. ../../rust/oled source, manifests, and info"
     echo
     echo "Generated component files:"
     echo "  $DOCS_OUT"
     echo "  $SCRIPTS_OUT"
+    echo "  $OLED_OUT"
     echo
     echo
     echo "################################################################"
-    echo "# SECTION 1: README / DOCS"
+    echo "# SECTION 1: LOLV README / DOCS"
     echo "################################################################"
     echo
     cat "$DOCS_OUT"
     echo
     echo
     echo "################################################################"
-    echo "# SECTION 2: MODIFIED SCRIPTS / GATEWARE / CONFIGS"
+    echo "# SECTION 2: LOLV MODIFIED SCRIPTS / GATEWARE / CONFIGS"
     echo "################################################################"
     echo
     cat "$SCRIPTS_OUT"
+    echo
+    echo
+    echo "################################################################"
+    echo "# SECTION 3: RUST OLED SOURCE / INFO"
+    echo "################################################################"
+    echo
+    cat "$OLED_OUT"
     echo
 } >> "$ALL_OUT"
 
 echo "wrote $ALL_OUT"
 
 echo
+echo "== aggregate sizes =="
+ls -lh "$DOCS_OUT" "$SCRIPTS_OUT" "$OLED_OUT" "$ALL_OUT"
+
+echo
+echo "== OLED files captured =="
+grep -c '^// FILE: ../../rust/oled/' "$OLED_OUT" || true
+
+echo
 echo "DONE."
-echo "Docs/readmes aggregate: $DOCS_OUT"
-echo "Modified scripts aggregate: $SCRIPTS_OUT"
-echo "Combined aggregate: $ALL_OUT"
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./cleanup_lolv_and_update_readmes_v1.sh
+////////////////////////////////////////////////////////////////
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+SELF="$(readlink -f "$0")"
+trap 'rc=$?; if [[ $rc -eq 0 ]]; then rm -f "$SELF"; fi' EXIT
+
+cd "$(dirname "$0")"
+
+if [[ ! -f soc_linux.py || ! -f README.md || ! -x cat_src.sh ]]; then
+    echo "ERROR: run this from the lolv repository root." >&2
+    exit 1
+fi
+
+echo "== remove obsolete untracked debug clutter =="
+
+rm -f \
+  build_and_flash.sh \
+  build_and_verify_spi_gateware.sh \
+  copy_dtb_via_sdcard.sh \
+  dump_orangecrab_pins_v2.sh \
+  patch_soc_linux_spi.sh \
+  spi_loopback_test.sh \
+  spi_read_from_board.sh \
+  reports/build_spi_mailbox_retry.log \
+  reports/build_spi_raw_counters.log \
+  reports/cat_rust_oled.txt \
+  reports/oled_test_128x64.pbm \
+  reports/oled_test_128x64.xbm \
+  tools/flash_spi_gateware.sh \
+  tools/rebuild_spi_gateware_bg.sh \
+  tools/send_spi_32bit_word.sh \
+  tools/send_spi_4byte.sh \
+  tools/send_spi_live.sh \
+  tools/send_spi_multibyte.sh \
+  tools/send_spi_test.sh \
+  tools/send_spi_test_beefcafe.sh \
+  tools/send_spi_test_clean.sh \
+  tools/send_spi_test_slow.sh \
+  tools/send_spi_test_veryslow.sh \
+  tools/spi_diag_master
+
+rm -f buildroot/board/litex_vexriscv/linux.config.bak.*
+rm -rf tools/test
+
+cat > spi_readme.md <<'MD'
+# OrangeCrab–Jetson SPI link
+
+## Working directories
+
+All project work starts from `lolv/`.
+
+@@@bash
+export EXTERNAL="$HOME/1tb/ext"
+export WORKROOT="$HOME/1tb/see/1-c0d3/vhdl"
+export WORKDIR="$WORKROOT/lolv"
+export RUSTROOT="$WORKDIR/../../rust"
+export OLED_DIR="$RUSTROOT/oled"
+export SPIS_DIR="$RUSTROOT/spis"
+
+cd "$WORKDIR"
+source "$EXTERNAL/fpga-env.sh"
+hash -r
+@@@
+
+`rust/spis/` is a parent directory containing independent SPI-related projects. It is not itself a Cargo project or workspace.
+
+Current/future locations:
+
+@@@text
+$WORKDIR/../../rust/oled/
+    OLED-specific project
+
+$WORKDIR/../../rust/spis/basic_spi_io/
+    first generic SPI file-transfer project
+
+$WORKDIR/../../rust/spis/<future-layer2-project>/
+    future project-specific SPI control/data service
+@@@
+
+## Proven hardware
+
+@@@text
+OrangeCrab: 85F rev 0.2
+Jetson:     Orin Nano
+SPI mode:   0
+Jetson:     master, /dev/spidev0.0
+OrangeCrab: slave, LiteX SPISlave
+sys_clk:    64 MHz
+@@@
+
+Correct wiring:
+
+@@@text
+Jetson pin 24 CS0  -> OrangeCrab GPIO:0  / N17 / cs_n
+Jetson pin 23 SCK  -> OrangeCrab GPIO:16 / N16 / clk
+Jetson pin 19 MOSI -> OrangeCrab GPIO:15 / R17 / mosi
+Jetson pin 21 MISO <- OrangeCrab GPIO:14 / N15 / miso
+Jetson pin 25 GND  -> OrangeCrab GND
+@@@
+
+The original receive failure was caused by SCK and MOSI being physically crossed.
+
+## Gateware interface
+
+`soc_linux.py` contains `SpiSlaveExt`, which wraps LiteX `SPISlave` with:
+
+- a stable one-entry completed-RX mailbox;
+- ACK and clear controls;
+- transaction count;
+- stable RX data and bit length;
+- direct raw state;
+- independent CS/SCK/MOSI counters.
+
+The current hardware word is 32 bits. Larger software messages are fragmented above this layer.
+
+@@@text
+spi_ext base = 0xf0005000
+
+0xf0005000  rx_data                         RO
+0xf0005004  tx_data                         RW
+0xf0005008  rx_length                       RO
+0xf000500c  status                          RO
+0xf0005010  transaction_count               RO
+0xf0005014  control                         RW
+0xf0005018  raw_mosi                        RO
+0xf000501c  raw_length                      RO
+0xf0005020  raw_done                        RO
+0xf0005024  raw_pins                        RO
+0xf0005028  raw_cs_assert_count             RO
+0xf000502c  raw_cs_deassert_count           RO
+0xf0005030  raw_sck_rise_count              RO
+0xf0005034  raw_sck_fall_count              RO
+0xf0005038  raw_mosi_high_on_sck_rise       RO
+0xf000503c  raw_mosi_low_on_sck_rise        RO
+@@@
+
+Control:
+
+@@@text
+bit 0: ACK/drop current RX mailbox
+bit 1: clear mailbox, overrun, transaction count, and raw counters
+@@@
+
+Status:
+
+@@@text
+bit 0: RX valid
+bit 1: SPI busy
+bit 2: RX overrun
+@@@
+
+## Proven transactions
+
+Jetson sent:
+
+@@@text
+ff aa 55 81
+@@@
+
+OrangeCrab observed:
+
+@@@text
+rx_data                        0xFFAA5581
+rx_length                      0x00000020
+transaction_count              0x00000001
+raw_cs_assert_count            0x00000001
+raw_cs_deassert_count          0x00000001
+raw_sck_rise_count             0x00000020
+raw_sck_fall_count             0x00000020
+raw_mosi_high_on_sck_rise      0x00000012
+raw_mosi_low_on_sck_rise       0x0000000E
+@@@
+
+That pattern contains exactly 18 one-bits and 14 zero-bits. MISO full-duplex transfer also passed with a known 32-bit `tx_data` pattern.
+
+## Retained diagnostics
+
+@@@text
+tools/spi_diag_master.c
+tools/read_spi_mailbox.sh
+tools/spi_miso_jetson.sh
+tools/spi_miso_orangecrab.sh
+@@@
+
+Build the reproducible Jetson diagnostic binary when needed:
+
+@@@bash
+cd "$WORKDIR"
+
+cc -O2 -Wall -Wextra -Werror \
+  tools/spi_diag_master.c \
+  -o tools/spi_diag_master
+@@@
+
+Remove the compiled binary after testing:
+
+@@@bash
+rm -f "$WORKDIR/tools/spi_diag_master"
+@@@
+
+## Build and flash
+
+@@@bash
+cd "$WORKDIR"
+source "$EXTERNAL/fpga-env.sh"
+hash -r
+
+./make.py \
+  --board=orange_crab \
+  --device=85F \
+  --revision=0.2 \
+  --cpu-count=1 \
+  --rootfs=mmcblk0p2 \
+  --build \
+  -- \
+  --sdram-device=MT41K256M16
+@@@
+
+A placement timing estimate can fail before the final routed timing passes. Use the final routed timing report.
+
+Create a fresh DFU image:
+
+@@@bash
+cp -f \
+  build/orange_crab/gateware/orange_crab.bit \
+  build/orange_crab/gateware/orange_crab.bit.dfu
+
+dfu-suffix \
+  -v 1209 \
+  -p 5af0 \
+  -a \
+  build/orange_crab/gateware/orange_crab.bit.dfu
+@@@
+
+Flash FPGA slot `alt 0`:
+
+@@@bash
+sudo dfu-util \
+  -a 0 \
+  -D build/orange_crab/gateware/orange_crab.bit.dfu
+@@@
+
+Do not flash the FPGA bitstream into `alt 1`.
+
+## Linux and storage
+
+Linux boots before login. The UART login prompt appears only after the kernel, `/sbin/init`, mounts, swap, syslog, and networking are running.
+
+@@@text
+/dev/mmcblk0p1   255 MiB   FAT boot partition
+/dev/mmcblk0p2   1.5 GiB   root filesystem mounted at /
+/dev/mmcblk0p3   4.0 GiB   swap
+/dev/mmcblk0p4   8.5 GiB   data filesystem mounted at /root/8gb
+@@@
+
+Observed free space:
+
+@@@text
+/           about 1.3 GiB free
+/root/8gb   about 8.0 GiB free
+@@@
+
+Check:
+
+@@@sh
+df -h / /root/8gb
+mount | grep mmcblk0
+cat /proc/partitions
+@@@
+
+Use `/root/8gb` for transferred binaries, staging files, logs, and application data.
+
+## Next milestone
+
+During development, SPI ownership is manual:
+
+- `spi_file_rx` owns OrangeCrab SPI only while it runs;
+- the OLED controller owns OrangeCrab SPI only while it runs;
+- only one is started at a time;
+- the finished layer-2 project will eventually be the sole normal owner.
+
+The first project under `rust/spis/` will transfer arbitrary files from Jetson to `/root/8gb`, verify exact length and whole-file hash, and later support transactional executable replacement.
+MD
+
+python3 - <<'PY'
+from pathlib import Path
+
+for p in [Path("spi_readme.md")]:
+    p.write_text(p.read_text().replace("@@@", "`" * 3))
+
+def section(path, start, end, body):
+    p = Path(path)
+    s = p.read_text()
+    block = start + "\n" + body.strip() + "\n" + end
+    if start in s and end in s:
+        a, rest = s.split(start, 1)
+        _, b = rest.split(end, 1)
+        s = a.rstrip() + "\n\n" + block + b
+    else:
+        s = block + "\n\n" + s
+    p.write_text(s)
+
+section(
+    "README.md",
+    "<!-- LOLV_LOCAL_STATUS_START -->",
+    "<!-- LOLV_LOCAL_STATUS_END -->",
+    r'''
+## Local OrangeCrab status
+
+This checkout is the OrangeCrab Linux-on-LiteX integration tree.
+
+Current proven additions:
+
+- custom VHDL header probe exposed through LiteX CSRs;
+- Buildroot Linux boot from SD;
+- Jetson-to-OrangeCrab SPI slave gateware;
+- stable completed-transaction mailbox;
+- raw CS/SCK/MOSI diagnostic counters;
+- verified mode-0 MOSI and MISO transfers;
+- verified 32-bit receive pattern `0xFFAA5581`;
+- corrected physical SCK/MOSI crossover.
+
+Local documentation:
+
+```text
+install_readme.md     toolchain, FPGA/Linux build, SD install, boot
+modify_readme.md      custom gateware and CSR history
+i2c_oled_readme.md    OLED/I2C work
+spi_readme.md         current SPI interface and Rust transition
+basic_readme.md       deterministic quotient/VHDL checklist
+```
+
+Working paths:
+
+```bash
+export EXTERNAL="$HOME/1tb/ext"
+export WORKROOT="$HOME/1tb/see/1-c0d3/vhdl"
+export WORKDIR="$WORKROOT/lolv"
+export RUSTROOT="$WORKDIR/../../rust"
+```
+
+Rust siblings:
+
+```text
+$WORKDIR/../../rust/oled/
+$WORKDIR/../../rust/spis/
+```
+
+`rust/spis/` contains independent projects; it is not one Cargo project.
+''',
+)
+
+section(
+    "install_readme.md",
+    "<!-- LOLV_CURRENT_RUNTIME_START -->",
+    "<!-- LOLV_CURRENT_RUNTIME_END -->",
+    r'''
+## Current Linux runtime and SD layout
+
+The Buildroot login prompt does not start Linux. Linux has already booted before the prompt appears:
+
+```text
+LiteX BIOS
+-> OpenSBI
+-> Linux 6.9
+-> /sbin/init
+-> filesystem mounts
+-> swap
+-> syslog/network
+-> login prompt
+```
+
+Current SD layout:
+
+```text
+/dev/mmcblk0p1   255 MiB   FAT boot
+/dev/mmcblk0p2   1.5 GiB   root filesystem mounted at /
+/dev/mmcblk0p3   4.0 GiB   swap
+/dev/mmcblk0p4   8.5 GiB   data partition mounted at /root/8gb
+```
+
+Observed free space:
+
+```text
+/           about 1.3 GiB free
+/root/8gb   about 8.0 GiB free
+```
+
+Target checks:
+
+```sh
+df -h / /root/8gb
+mount | grep mmcblk0
+cat /proc/partitions
+fdisk -l /dev/mmcblk0 2>/dev/null
+```
+
+Use `/root/8gb` for deployed binaries, staging files, logs, and application data.
+''',
+)
+
+section(
+    "modify_readme.md",
+    "<!-- LOLV_SPI_MILESTONE_START -->",
+    "<!-- LOLV_SPI_MILESTONE_END -->",
+    r'''
+## Proven external SPI milestone
+
+`soc_linux.py` now includes `SpiSlaveExt`:
+
+```text
+Jetson /dev/spidev0.0
+-> SPI mode 0
+-> OrangeCrab ECP5 pins
+-> LiteX SPISlave
+-> stable Linux mailbox
+-> raw edge counters
+-> Linux devmem / future Rust MMIO
+```
+
+Correct pins:
+
+```text
+CS0  -> GPIO:0  / N17
+SCK  -> GPIO:16 / N16
+MOSI -> GPIO:15 / R17
+MISO <- GPIO:14 / N15
+```
+
+The original fault was a physical SCK/MOSI crossover. After correction, `ff aa 55 81` produced:
+
+```text
+rx_data                        0xFFAA5581
+rx_length                      0x00000020
+raw_sck_rise_count             0x00000020
+raw_sck_fall_count             0x00000020
+raw_mosi_high_on_sck_rise      0x00000012
+raw_mosi_low_on_sck_rise       0x0000000E
+```
+
+MISO full-duplex transfer also passed. See `spi_readme.md`.
+''',
+)
+
+p = Path("i2c_oled_readme.md")
+s = p.read_text()
+s = s.replace(
+    'export I2CSDIR="$WORKROOT/i2cs"',
+    'export RUSTROOT="$WORKDIR/../../rust"\nexport OLED_DIR="$RUSTROOT/oled"\nexport SPIS_DIR="$RUSTROOT/spis"',
+)
+marker = "<!-- LOLV_RUST_PATHS_START -->"
+if marker not in s:
+    insert = '''<!-- LOLV_RUST_PATHS_START -->
+## Rust sibling projects
+
+From `lolv/`:
+
+```text
+$WORKDIR/../../rust/oled/
+    OLED-specific project
+
+$WORKDIR/../../rust/spis/
+    parent directory containing independent SPI projects
+```
+
+`rust/spis/` is not itself a Cargo project.
+<!-- LOLV_RUST_PATHS_END -->
+
+'''
+    s = insert + s
+p.write_text(s)
+PY
+
+echo
+echo "== regenerate source/document aggregates =="
+./cat_src.sh
+
+echo
+echo "== final status =="
+git status --short
+
+echo
+echo "== retained final SPI helpers =="
+ls -lh \
+  tools/spi_diag_master.c \
+  tools/read_spi_mailbox.sh \
+  tools/spi_miso_jetson.sh \
+  tools/spi_miso_orangecrab.sh
+
+echo
+echo "== current README set =="
+ls -lh \
+  README.md \
+  install_readme.md \
+  modify_readme.md \
+  i2c_oled_readme.md \
+  spi_readme.md
+
+echo
+echo "DONE. Installer will now delete itself."
 
 
 ////////////////////////////////////////////////////////////////
@@ -1753,62 +1746,6 @@ cargo run -p axum_serve -- \
   --i2c-bus "${I2C_BUS:-/dev/i2c-0}" \
   --i2c-addr "${I2C_ADDR:-0x3c}" \
   --static-dir "$OLED_DIR/axum_serve/static"
-
-
-////////////////////////////////////////////////////////////////
-// FILE: ./fix_toolchain_pin.sh
-////////////////////////////////////////////////////////////////
-
-#!/bin/bash
-# Run from lolv/. Fixes the broken rust-toolchain.toml by pinning to the
-# actual dated nightly snapshot (read from rustc itself), not a guess.
-
-WORKDIR="/mnt/storage/see/1-c0d3/vhdl/lolv"
-OLED_DIR="$WORKDIR/../../rust/oled"
-
-echo "== reading the real nightly commit date from rustc =="
-VERBOSE=$(rustc +nightly --version --verbose)
-echo "$VERBOSE"
-NIGHTLY_DATE=$(echo "$VERBOSE" | grep '^commit-date:' | awk '{print $2}')
-echo "  parsed date: $NIGHTLY_DATE"
-echo
-
-if [ -z "$NIGHTLY_DATE" ]; then
-  echo "ABORTING: couldn't parse a commit-date from rustc output above."
-else
-  echo "== installing the exact dated snapshot nightly-$NIGHTLY_DATE =="
-  rustup toolchain install "nightly-$NIGHTLY_DATE"
-  rustup component add rust-src --toolchain "nightly-$NIGHTLY_DATE"
-  echo
-
-  echo "== rewriting rust-toolchain.toml correctly =="
-  cat > "$OLED_DIR/rust-toolchain.toml" << EOF
-[toolchain]
-channel = "nightly-$NIGHTLY_DATE"
-components = ["rust-src"]
-EOF
-  cat "$OLED_DIR/rust-toolchain.toml"
-  echo
-
-  echo "== confirming rustup now resolves this override correctly =="
-  cd "$OLED_DIR"
-  rustup show active-toolchain
-  echo
-
-  echo "== retrying both builds =="
-  echo "-- jetson native --"
-  cargo build --release -p serial_bridge
-  echo "  jetson status: $?"
-  echo
-
-  echo "-- board rv32ima (still needs explicit +nightly for -Z flags) --"
-  cargo +nightly build -Z build-std=std,panic_abort -Z json-target-spec \
-    --target rv32ima-buildroot.json --release -p serial_bridge
-  echo "  board status: $?"
-fi
-
-echo
-echo "done"
 
 
 ////////////////////////////////////////////////////////////////
@@ -2544,11 +2481,11 @@ import subprocess
 from migen import *
 
 from litex.soc.interconnect.csr import *
-from litex.build.generic_platform import Pins, IOStandard, Misc
+from litex.build.generic_platform import Pins, Subsignal, IOStandard, Misc
 
 from litex.soc.cores.cpu.vexriscv_smp import VexRiscvSMP
 from litex.soc.cores.gpio    import GPIOOut, GPIOIn
-from litex.soc.cores.spi     import SPIMaster
+from litex.soc.cores.spi     import SPIMaster, SPISlave
 from litex.soc.cores.bitbang import I2CMaster
 from litex.soc.cores.pwm     import PWM
 
@@ -2583,6 +2520,214 @@ class HeaderProbe(Module, AutoCSR):
         )
 
         self.comb += self.pins_in.status.eq(pins_in)
+
+
+# SPI Slave Ext CSR wrapper -------------------------------------------------------------------------
+#
+# Thin CSR shim around LiteX's existing litex.soc.cores.spi.SPISlave core --
+# same pattern as HeaderProbe, just wrapping an already-written module
+# instead of custom VHDL. No IRQ for v1 (kept boring per basic_readme.md);
+# Linux polls `done`/`length` via CSR.
+
+class SpiSlaveExt(Module, AutoCSR):
+    # Linux-visible SPI slave with a stable one-entry receive mailbox.
+    #
+    # LiteX SPISlave performs the electrical shifting. This wrapper
+    # snapshots each completed transaction into registers that remain
+    # stable until Linux explicitly acknowledges them.
+
+    def __init__(self, pads, data_width):
+        # Use LiteX SPISlave directly. It already synchronizes clk, cs_n,
+        # and mosi internally. The previous external debounce filter was
+        # inconclusive and made the raw baseline harder to interpret.
+        self.submodules.spi = spi = SPISlave(pads, data_width=data_width)
+
+        self.rx_data = CSRStatus(
+            data_width,
+            description="Completed MOSI transaction snapshot; stable while rx_valid=1.",
+        )
+        self.tx_data = CSRStorage(
+            data_width,
+            description="Data shifted out on MISO during subsequent SPI transactions.",
+        )
+        self.rx_length = CSRStatus(
+            8,
+            description="Bit length captured with rx_data.",
+        )
+        self.status = CSRStatus(
+            4,
+            description="bit0=rx_valid, bit1=spi_busy, bit2=rx_overrun, bit3=reserved.",
+        )
+        self.transaction_count = CSRStatus(
+            32,
+            description="Completed SPI transactions since clear/reset.",
+        )
+        self.control = CSRStorage(
+            2,
+            description=(
+                "Write bit0=1 to ACK/drop current RX mailbox; "
+                "write bit1=1 to clear mailbox, overrun, and transaction counter."
+            ),
+        )
+
+        # Raw/live diagnostic view.
+        self.raw_mosi = CSRStatus(
+            data_width,
+            description="Live LiteX SPISlave MOSI shift register.",
+        )
+        self.raw_length = CSRStatus(
+            8,
+            description="Live LiteX SPISlave bit counter.",
+        )
+        self.raw_done = CSRStatus(
+            1,
+            description="Live LiteX SPISlave done/idle signal.",
+        )
+        self.raw_pins = CSRStatus(
+            4,
+            description="Physical pins: bit0=cs_n bit1=clk bit2=mosi bit3=miso.",
+        )
+
+        self.raw_cs_assert_count = CSRStatus(32, description="Synchronized CS_N falling-edge count.")
+        self.raw_cs_deassert_count = CSRStatus(32, description="Synchronized CS_N rising-edge count.")
+        self.raw_sck_rise_count = CSRStatus(32, description="Synchronized raw SCK rising-edge count.")
+        self.raw_sck_fall_count = CSRStatus(32, description="Synchronized raw SCK falling-edge count.")
+        self.raw_mosi_high_on_sck_rise = CSRStatus(32, description="SCK rises with MOSI high.")
+        self.raw_mosi_low_on_sck_rise = CSRStatus(32, description="SCK rises with MOSI low.")
+
+        rx_data_reg = Signal(data_width, reset=0)
+        rx_length_reg = Signal(8, reset=0)
+        rx_valid = Signal(reset=0)
+        rx_overrun = Signal(reset=0)
+        transaction_count_reg = Signal(32, reset=0)
+
+        raw_cs_meta = Signal(reset=1)
+        raw_cs_sync = Signal(reset=1)
+        raw_cs_prev = Signal(reset=1)
+        raw_sck_meta = Signal(reset=0)
+        raw_sck_sync = Signal(reset=0)
+        raw_sck_prev = Signal(reset=0)
+        raw_mosi_meta = Signal(reset=0)
+        raw_mosi_sync = Signal(reset=0)
+
+        raw_cs_assert_count_reg = Signal(32, reset=0)
+        raw_cs_deassert_count_reg = Signal(32, reset=0)
+        raw_sck_rise_count_reg = Signal(32, reset=0)
+        raw_sck_fall_count_reg = Signal(32, reset=0)
+        raw_mosi_high_count_reg = Signal(32, reset=0)
+        raw_mosi_low_count_reg = Signal(32, reset=0)
+
+        raw_cs_assert = Signal()
+        raw_cs_deassert = Signal()
+        raw_sck_rise = Signal()
+        raw_sck_fall = Signal()
+
+        done_d = Signal(reset=1)
+        transaction_complete = Signal()
+        ack_pulse = Signal()
+        clear_pulse = Signal()
+
+        self.comb += [
+            spi.miso.eq(self.tx_data.storage),
+
+            transaction_complete.eq(~done_d & spi.done),
+            ack_pulse.eq(self.control.re & self.control.storage[0]),
+            clear_pulse.eq(self.control.re & self.control.storage[1]),
+
+            self.rx_data.status.eq(rx_data_reg),
+            self.rx_length.status.eq(rx_length_reg),
+            self.transaction_count.status.eq(transaction_count_reg),
+            self.status.status.eq(Cat(
+                rx_valid,
+                ~spi.done,
+                rx_overrun,
+                0,
+            )),
+
+            self.raw_mosi.status.eq(spi.mosi),
+            self.raw_length.status.eq(spi.length),
+            self.raw_done.status.eq(spi.done),
+            self.raw_pins.status.eq(Cat(
+                pads.cs_n,
+                pads.clk,
+                pads.mosi,
+                pads.miso,
+            )),
+
+            raw_cs_assert.eq(raw_cs_prev & ~raw_cs_sync),
+            raw_cs_deassert.eq(~raw_cs_prev & raw_cs_sync),
+            raw_sck_rise.eq(~raw_sck_prev & raw_sck_sync),
+            raw_sck_fall.eq(raw_sck_prev & ~raw_sck_sync),
+
+            self.raw_cs_assert_count.status.eq(raw_cs_assert_count_reg),
+            self.raw_cs_deassert_count.status.eq(raw_cs_deassert_count_reg),
+            self.raw_sck_rise_count.status.eq(raw_sck_rise_count_reg),
+            self.raw_sck_fall_count.status.eq(raw_sck_fall_count_reg),
+            self.raw_mosi_high_on_sck_rise.status.eq(raw_mosi_high_count_reg),
+            self.raw_mosi_low_on_sck_rise.status.eq(raw_mosi_low_count_reg),
+        ]
+
+        self.sync += [
+            done_d.eq(spi.done),
+
+            raw_cs_meta.eq(pads.cs_n),
+            raw_cs_sync.eq(raw_cs_meta),
+            raw_cs_prev.eq(raw_cs_sync),
+
+            raw_sck_meta.eq(pads.clk),
+            raw_sck_sync.eq(raw_sck_meta),
+            raw_sck_prev.eq(raw_sck_sync),
+
+            raw_mosi_meta.eq(pads.mosi),
+            raw_mosi_sync.eq(raw_mosi_meta),
+
+            If(clear_pulse,
+                rx_data_reg.eq(0),
+                rx_length_reg.eq(0),
+                rx_valid.eq(0),
+                rx_overrun.eq(0),
+                transaction_count_reg.eq(0),
+                raw_cs_assert_count_reg.eq(0),
+                raw_cs_deassert_count_reg.eq(0),
+                raw_sck_rise_count_reg.eq(0),
+                raw_sck_fall_count_reg.eq(0),
+                raw_mosi_high_count_reg.eq(0),
+                raw_mosi_low_count_reg.eq(0),
+            ).Else(
+                If(raw_cs_assert,
+                    raw_cs_assert_count_reg.eq(raw_cs_assert_count_reg + 1),
+                ),
+                If(raw_cs_deassert,
+                    raw_cs_deassert_count_reg.eq(raw_cs_deassert_count_reg + 1),
+                ),
+                If(raw_sck_rise,
+                    raw_sck_rise_count_reg.eq(raw_sck_rise_count_reg + 1),
+                    If(raw_mosi_sync,
+                        raw_mosi_high_count_reg.eq(raw_mosi_high_count_reg + 1),
+                    ).Else(
+                        raw_mosi_low_count_reg.eq(raw_mosi_low_count_reg + 1),
+                    ),
+                ),
+                If(raw_sck_fall,
+                    raw_sck_fall_count_reg.eq(raw_sck_fall_count_reg + 1),
+                ),
+                If(ack_pulse,
+                    rx_valid.eq(0),
+                ),
+
+                If(transaction_complete,
+                    transaction_count_reg.eq(transaction_count_reg + 1),
+
+                    If(rx_valid & ~ack_pulse,
+                        rx_overrun.eq(1),
+                    ).Else(
+                        rx_data_reg.eq(spi.mosi),
+                        rx_length_reg.eq(spi.length),
+                        rx_valid.eq(1),
+                    ),
+                ),
+            ),
+        ]
 
 
 # SoCLinux -----------------------------------------------------------------------------------------
@@ -2654,6 +2799,32 @@ def SoCLinux(soc_cls, **kwargs):
             #
             # GPIO:2/GPIO:3 are left alone because this SoC already has i2c0.
             # GPIO:0/GPIO:14/GPIO:15/GPIO:16 are left alone for possible SPI-style use.
+
+            # SPI Slave (Jetson<->OrangeCrab realtime link) -------------------------------------
+            #
+            # Dedicated pins reserved above:
+            #   GPIO:0  (N17) -> cs_n
+            #   GPIO:14 (N15) -> miso
+            #   GPIO:15 (R17) -> mosi
+            #   GPIO:16 (N16) -> clk
+            #
+            # 256-byte (2048-bit) transactions.
+            self.platform.add_extension([
+                ("spi_ext", 0,
+                    Subsignal("cs_n", Pins("N17"), Misc("PULLMODE=UP")),
+                    Subsignal("clk",  Pins("N16")),
+                    Subsignal("mosi", Pins("R17"), Misc("PULLMODE=UP")),
+                    Subsignal("miso", Pins("N15"), Misc("PULLMODE=UP")),
+                    IOStandard("LVCMOS33"),
+                    Misc("SLEWRATE=SLOW"),
+                )
+            ])
+            self.submodules.spi_ext = SpiSlaveExt(
+                pads       = self.platform.request("spi_ext", 0),
+                data_width = 32,  # shrunk from 2048 -- 256B framing now happens in software
+            )
+            # Keep spi_ext away from CSR bank 0 (ctrl) and bank 9 (header_probe).
+            self.csr.add("spi_ext", n=10)
 
 
         # RGB Led ----------------------------------------------------------------------------------
@@ -3646,6 +3817,45 @@ echo "  python3 ./tools/run_luma_oled_test.py --port 0 --address 0x3c --device s
 
 
 ////////////////////////////////////////////////////////////////
+// FILE: ./tools/read_spi_mailbox.sh
+////////////////////////////////////////////////////////////////
+
+#!/usr/bin/env sh
+set -eu
+
+read_reg() {
+    name="$1"
+    addr="$2"
+    printf '%-20s ' "$name"
+    devmem "$addr" 32
+}
+
+case "${1:-read}" in
+    clear)
+        devmem 0xf0005014 32 0x00000002
+        ;;
+    ack)
+        devmem 0xf0005014 32 0x00000001
+        ;;
+    read)
+        read_reg rx_data           0xf0005000
+        read_reg tx_data           0xf0005004
+        read_reg rx_length         0xf0005008
+        read_reg status            0xf000500c
+        read_reg transaction_count 0xf0005010
+        read_reg raw_mosi          0xf0005018
+        read_reg raw_length        0xf000501c
+        read_reg raw_done          0xf0005020
+        read_reg raw_pins          0xf0005024
+        ;;
+    *)
+        echo "usage: $0 [read|clear|ack]" >&2
+        exit 2
+        ;;
+esac
+
+
+////////////////////////////////////////////////////////////////
 // FILE: ./tools/rebuild_kernel_tun.sh
 ////////////////////////////////////////////////////////////////
 
@@ -4012,6 +4222,264 @@ fi
 
 echo
 echo "done"
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./tools/spi_diag_master.c
+////////////////////////////////////////////////////////////////
+
+#define _GNU_SOURCE
+#include <errno.h>
+#include <fcntl.h>
+#include <linux/spi/spidev.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <time.h>
+#include <unistd.h>
+
+static void die(const char *what) {
+    fprintf(stderr, "ERROR: %s: %s\n", what, strerror(errno));
+    exit(1);
+}
+
+static unsigned long parse_ul(const char *s, const char *name) {
+    char *end = NULL;
+    errno = 0;
+    unsigned long value = strtoul(s, &end, 0);
+    if (errno || !end || *end != '\0') {
+        fprintf(stderr, "ERROR: invalid %s: %s\n", name, s);
+        exit(2);
+    }
+    return value;
+}
+
+static uint8_t parse_byte(const char *s) {
+    unsigned long value = parse_ul(s, "byte");
+    if (value > 0xff) {
+        fprintf(stderr, "ERROR: byte out of range: %s\n", s);
+        exit(2);
+    }
+    return (uint8_t)value;
+}
+
+static void print_bytes(const char *label, const uint8_t *buf, size_t len) {
+    printf("%s", label);
+    for (size_t i = 0; i < len; ++i)
+        printf("%s%02x", i ? " " : "", buf[i]);
+    putchar('\n');
+}
+
+int main(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr,
+            "usage: %s [--device /dev/spidev0.0] [--speed HZ] "
+            "[--mode 0] [--delay-usecs N] BYTE [BYTE ...]\n",
+            argv[0]);
+        return 2;
+    }
+
+    const char *device = "/dev/spidev0.0";
+    uint32_t speed_hz = 100000;
+    uint8_t mode = SPI_MODE_0;
+    uint16_t delay_usecs = 0;
+
+    uint8_t tx[4096];
+    uint8_t rx[4096];
+    size_t len = 0;
+
+    for (int i = 1; i < argc; ++i) {
+        if (!strcmp(argv[i], "--device")) {
+            if (++i >= argc) return 2;
+            device = argv[i];
+        } else if (!strcmp(argv[i], "--speed")) {
+            if (++i >= argc) return 2;
+            speed_hz = (uint32_t)parse_ul(argv[i], "speed");
+        } else if (!strcmp(argv[i], "--mode")) {
+            if (++i >= argc) return 2;
+            unsigned long m = parse_ul(argv[i], "mode");
+            if (m > 3) {
+                fprintf(stderr, "ERROR: mode must be 0..3\n");
+                return 2;
+            }
+            mode = (uint8_t)m;
+        } else if (!strcmp(argv[i], "--delay-usecs")) {
+            if (++i >= argc) return 2;
+            delay_usecs = (uint16_t)parse_ul(argv[i], "delay-usecs");
+        } else {
+            if (len >= sizeof(tx)) {
+                fprintf(stderr, "ERROR: too many bytes\n");
+                return 2;
+            }
+            tx[len++] = parse_byte(argv[i]);
+        }
+    }
+
+    if (len == 0) {
+        fprintf(stderr, "ERROR: provide at least one byte\n");
+        return 2;
+    }
+
+    memset(rx, 0, sizeof(rx));
+
+    int fd = open(device, O_RDWR | O_CLOEXEC);
+    if (fd < 0) die("open spidev");
+
+    if (ioctl(fd, SPI_IOC_WR_MODE, &mode) < 0) die("SPI_IOC_WR_MODE");
+    if (ioctl(fd, SPI_IOC_RD_MODE, &mode) < 0) die("SPI_IOC_RD_MODE");
+
+    uint8_t bits = 8;
+    if (ioctl(fd, SPI_IOC_WR_BITS_PER_WORD, &bits) < 0)
+        die("SPI_IOC_WR_BITS_PER_WORD");
+    if (ioctl(fd, SPI_IOC_RD_BITS_PER_WORD, &bits) < 0)
+        die("SPI_IOC_RD_BITS_PER_WORD");
+
+    if (ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed_hz) < 0)
+        die("SPI_IOC_WR_MAX_SPEED_HZ");
+    if (ioctl(fd, SPI_IOC_RD_MAX_SPEED_HZ, &speed_hz) < 0)
+        die("SPI_IOC_RD_MAX_SPEED_HZ");
+
+    struct spi_ioc_transfer transfer = {
+        .tx_buf = (uintptr_t)tx,
+        .rx_buf = (uintptr_t)rx,
+        .len = (uint32_t)len,
+        .speed_hz = speed_hz,
+        .delay_usecs = delay_usecs,
+        .bits_per_word = bits,
+        .cs_change = 0,
+    };
+
+    struct timespec before, after;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &before);
+
+    int rc = ioctl(fd, SPI_IOC_MESSAGE(1), &transfer);
+    if (rc < 0) die("SPI_IOC_MESSAGE(1)");
+
+    clock_gettime(CLOCK_MONOTONIC_RAW, &after);
+    close(fd);
+
+    long long elapsed_ns =
+        (after.tv_sec - before.tv_sec) * 1000000000LL +
+        (after.tv_nsec - before.tv_nsec);
+
+    printf("device=%s mode=%u bits=%u requested_speed_hz=%u "
+           "bytes=%zu ioctl_return=%d elapsed_ns=%lld\n",
+           device, mode, bits, speed_hz, len, rc, elapsed_ns);
+    print_bytes("tx=", tx, len);
+    print_bytes("rx=", rx, len);
+
+    if (rc != (int)len) {
+        fprintf(stderr,
+            "WARNING: ioctl returned %d, expected %zu transferred bytes\n",
+            rc, len);
+    }
+
+    return 0;
+}
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./tools/spi_miso_jetson.sh
+////////////////////////////////////////////////////////////////
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+pattern="${1:-0xA55A3CC3}"
+speed="${SPI_TEST_SPEED_HZ:-100000}"
+device="${SPI_TEST_DEVICE:-/dev/spidev0.0}"
+
+mapfile -t rows < <(
+python3 - "$pattern" <<'PY'
+import sys
+value = int(sys.argv[1], 0)
+if not 0 <= value <= 0xffffffff:
+    raise SystemExit("pattern must fit in 32 bits")
+raw = value.to_bytes(4, "big")
+print(" ".join(f"0x{x:02x}" for x in raw))
+print(" ".join(f"{x:02x}" for x in raw))
+PY
+)
+
+send_bytes="${rows[0]}"
+expected_rx="${rows[1]}"
+
+echo "Jetson SPI MISO verification"
+echo "device:      $device"
+echo "speed:       $speed Hz"
+echo "expected RX: $expected_rx"
+
+set +e
+output="$(
+    sudo ./tools/spi_diag_master         --device "$device"         --speed "$speed"         --mode 0         $send_bytes 2>&1
+)"
+rc=$?
+set -e
+
+printf '%s\n' "$output"
+
+if [[ $rc -ne 0 ]]; then
+    echo "FAIL: spi_diag_master exited with status $rc" >&2
+    exit "$rc"
+fi
+
+actual_rx="$(
+    printf '%s\n' "$output" |
+    sed -n 's/^rx=//p' |
+    tail -1 |
+    tr '[:upper:]' '[:lower:]' |
+    xargs
+)"
+
+echo
+if [[ "$actual_rx" == "$expected_rx" ]]; then
+    echo "PASS: OrangeCrab -> Jetson MISO matched exactly: $actual_rx"
+else
+    echo "FAIL: MISO mismatch" >&2
+    echo "expected: $expected_rx" >&2
+    echo "actual:   $actual_rx" >&2
+    exit 1
+fi
+
+
+////////////////////////////////////////////////////////////////
+// FILE: ./tools/spi_miso_orangecrab.sh
+////////////////////////////////////////////////////////////////
+
+#!/usr/bin/env sh
+set -eu
+
+TX_DATA=0xf0005004
+CONTROL=0xf0005014
+pattern="${1:-0xA55A3CC3}"
+
+echo "OrangeCrab SPI MISO preparation"
+echo "pattern: $pattern"
+
+devmem "$CONTROL" 32 0x00000002
+devmem "$TX_DATA" 32 "$pattern"
+
+printf "%-30s " "tx_data_readback"
+devmem "$TX_DATA" 32
+
+echo
+echo "Run on Jetson:"
+echo "  ./tools/spi_miso_jetson.sh $pattern"
+echo
+echo "Then press Enter here."
+read _
+
+for x in     "rx_data:0xf0005000"     "tx_data:0xf0005004"     "rx_length:0xf0005008"     "status:0xf000500c"     "transaction_count:0xf0005010"     "raw_mosi:0xf0005018"     "raw_length:0xf000501c"     "raw_done:0xf0005020"     "raw_pins:0xf0005024"     "raw_cs_assert_count:0xf0005028"     "raw_cs_deassert_count:0xf000502c"     "raw_sck_rise_count:0xf0005030"     "raw_sck_fall_count:0xf0005034"     "raw_mosi_high_on_sck_rise:0xf0005038"     "raw_mosi_low_on_sck_rise:0xf000503c"
+do
+    name="${x%%:*}"
+    addr="${x##*:}"
+    printf "%-30s " "$name"
+    devmem "$addr" 32
+done
 
 
 ////////////////////////////////////////////////////////////////

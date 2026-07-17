@@ -1,3 +1,47 @@
+<!-- LOLV_CURRENT_RUNTIME_START -->
+## Current Linux runtime and SD layout
+
+The Buildroot login prompt does not start Linux. Linux has already booted before the prompt appears:
+
+```text
+LiteX BIOS
+-> OpenSBI
+-> Linux 6.9
+-> /sbin/init
+-> filesystem mounts
+-> swap
+-> syslog/network
+-> login prompt
+```
+
+Current SD layout:
+
+```text
+/dev/mmcblk0p1   255 MiB   FAT boot
+/dev/mmcblk0p2   1.5 GiB   root filesystem mounted at /
+/dev/mmcblk0p3   4.0 GiB   swap
+/dev/mmcblk0p4   8.5 GiB   data partition mounted at /root/8gb
+```
+
+Observed free space:
+
+```text
+/           about 1.3 GiB free
+/root/8gb   about 8.0 GiB free
+```
+
+Target checks:
+
+```sh
+df -h / /root/8gb
+mount | grep mmcblk0
+cat /proc/partitions
+fdisk -l /dev/mmcblk0 2>/dev/null
+```
+
+Use `/root/8gb` for deployed binaries, staging files, logs, and application data.
+<!-- LOLV_CURRENT_RUNTIME_END -->
+
 # Install Notes
 
 <!-- ORANGECRAB_REQUIREMENTS_START -->

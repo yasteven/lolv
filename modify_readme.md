@@ -1,3 +1,41 @@
+<!-- LOLV_SPI_MILESTONE_START -->
+## Proven external SPI milestone
+
+`soc_linux.py` now includes `SpiSlaveExt`:
+
+```text
+Jetson /dev/spidev0.0
+-> SPI mode 0
+-> OrangeCrab ECP5 pins
+-> LiteX SPISlave
+-> stable Linux mailbox
+-> raw edge counters
+-> Linux devmem / future Rust MMIO
+```
+
+Correct pins:
+
+```text
+CS0  -> GPIO:0  / N17
+SCK  -> GPIO:16 / N16
+MOSI -> GPIO:15 / R17
+MISO <- GPIO:14 / N15
+```
+
+The original fault was a physical SCK/MOSI crossover. After correction, `ff aa 55 81` produced:
+
+```text
+rx_data                        0xFFAA5581
+rx_length                      0x00000020
+raw_sck_rise_count             0x00000020
+raw_sck_fall_count             0x00000020
+raw_mosi_high_on_sck_rise      0x00000012
+raw_mosi_low_on_sck_rise       0x0000000E
+```
+
+MISO full-duplex transfer also passed. See `spi_readme.md`.
+<!-- LOLV_SPI_MILESTONE_END -->
+
 
 # Modify Notes: Custom VHDL IP wired to LiteX/Linux CSRs
 

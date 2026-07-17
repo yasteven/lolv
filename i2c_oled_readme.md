@@ -1,3 +1,19 @@
+<!-- LOLV_RUST_PATHS_START -->
+## Rust sibling projects
+
+From `lolv/`:
+
+```text
+$WORKDIR/../../rust/oled/
+    OLED-specific project
+
+$WORKDIR/../../rust/spis/
+    parent directory containing independent SPI projects
+```
+
+`rust/spis/` is not itself a Cargo project.
+<!-- LOLV_RUST_PATHS_END -->
+
 
 # I2C OLED branch notes: `ext_i2cs_1p3in_GME12864_70`
 
@@ -37,7 +53,9 @@ That keeps `lolv/` mergeable and keeps third-party display/library repos out of 
 export EXTERNAL="$HOME/1tb/ext"
 export WORKROOT="$HOME/1tb/see/1-c0d3/vhdl"
 export WORKDIR="$WORKROOT/lolv"
-export I2CSDIR="$WORKROOT/i2cs"
+export RUSTROOT="$WORKDIR/../../rust"
+export OLED_DIR="$RUSTROOT/oled"
+export SPIS_DIR="$RUSTROOT/spis"
 
 cd "$WORKDIR"
 source "$EXTERNAL/fpga-env.sh"
@@ -177,7 +195,9 @@ $WORKROOT/i2cs/luma.oled
 For manual testing:
 
 ```bash
-export I2CSDIR="$WORKROOT/i2cs"
+export RUSTROOT="$WORKDIR/../../rust"
+export OLED_DIR="$RUSTROOT/oled"
+export SPIS_DIR="$RUSTROOT/spis"
 export PYTHONPATH="$I2CSDIR/luma.core:$I2CSDIR/luma.oled:$PYTHONPATH"
 python3 ./tools/run_luma_oled_test.py --port 0 --address 0x3c --device sh1106
 ```

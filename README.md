@@ -1,3 +1,48 @@
+<!-- LOLV_LOCAL_STATUS_START -->
+## Local OrangeCrab status
+
+This checkout is the OrangeCrab Linux-on-LiteX integration tree.
+
+Current proven additions:
+
+- custom VHDL header probe exposed through LiteX CSRs;
+- Buildroot Linux boot from SD;
+- Jetson-to-OrangeCrab SPI slave gateware;
+- stable completed-transaction mailbox;
+- raw CS/SCK/MOSI diagnostic counters;
+- verified mode-0 MOSI and MISO transfers;
+- verified 32-bit receive pattern `0xFFAA5581`;
+- corrected physical SCK/MOSI crossover.
+
+Local documentation:
+
+```text
+install_readme.md     toolchain, FPGA/Linux build, SD install, boot
+modify_readme.md      custom gateware and CSR history
+i2c_oled_readme.md    OLED/I2C work
+spi_readme.md         current SPI interface and Rust transition
+basic_readme.md       deterministic quotient/VHDL checklist
+```
+
+Working paths:
+
+```bash
+export EXTERNAL="$HOME/1tb/ext"
+export WORKROOT="$HOME/1tb/see/1-c0d3/vhdl"
+export WORKDIR="$WORKROOT/lolv"
+export RUSTROOT="$WORKDIR/../../rust"
+```
+
+Rust siblings:
+
+```text
+$WORKDIR/../../rust/oled/
+$WORKDIR/../../rust/spis/
+```
+
+`rust/spis/` contains independent projects; it is not one Cargo project.
+<!-- LOLV_LOCAL_STATUS_END -->
+
 ```
                                    __   _
                                   / /  (_)__  __ ____ __

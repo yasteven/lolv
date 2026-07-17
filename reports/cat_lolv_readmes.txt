@@ -1,7 +1,7 @@
 ================================================================
 LOLV README / DOCS
-ROOT: /mnt/storage/see/1-c0d3/vhdl/lolv
-GENERATED: 2026-07-04T12:59:30-07:00
+ROOT: /home/seejn/1tb/see/1-c0d3/vhdl/lolv
+GENERATED: 2026-07-16T18:49:40-07:00
 ================================================================
 
 
@@ -454,6 +454,22 @@ $ cat /dev/urandom >/dev/fb0
 # FILE: ./i2c_oled_readme.md
 ################################################################
 
+<!-- LOLV_RUST_PATHS_START -->
+## Rust sibling projects
+
+From `lolv/`:
+
+```text
+$WORKDIR/../../rust/oled/
+    OLED-specific project
+
+$WORKDIR/../../rust/spis/
+    parent directory containing independent SPI projects
+```
+
+`rust/spis/` is not itself a Cargo project.
+<!-- LOLV_RUST_PATHS_END -->
+
 
 # I2C OLED branch notes: `ext_i2cs_1p3in_GME12864_70`
 
@@ -493,7 +509,9 @@ That keeps `lolv/` mergeable and keeps third-party display/library repos out of 
 export EXTERNAL="$HOME/1tb/ext"
 export WORKROOT="$HOME/1tb/see/1-c0d3/vhdl"
 export WORKDIR="$WORKROOT/lolv"
-export I2CSDIR="$WORKROOT/i2cs"
+export RUSTROOT="$WORKDIR/../../rust"
+export OLED_DIR="$RUSTROOT/oled"
+export SPIS_DIR="$RUSTROOT/spis"
 
 cd "$WORKDIR"
 source "$EXTERNAL/fpga-env.sh"
@@ -633,7 +651,9 @@ $WORKROOT/i2cs/luma.oled
 For manual testing:
 
 ```bash
-export I2CSDIR="$WORKROOT/i2cs"
+export RUSTROOT="$WORKDIR/../../rust"
+export OLED_DIR="$RUSTROOT/oled"
+export SPIS_DIR="$RUSTROOT/spis"
 export PYTHONPATH="$I2CSDIR/luma.core:$I2CSDIR/luma.oled:$PYTHONPATH"
 python3 ./tools/run_luma_oled_test.py --port 0 --address 0x3c --device sh1106
 ```
@@ -687,6 +707,50 @@ After this passes, a later branch can decide whether a custom FPGA I2C/OLED cont
 ################################################################
 # FILE: ./install_readme.md
 ################################################################
+
+<!-- LOLV_CURRENT_RUNTIME_START -->
+## Current Linux runtime and SD layout
+
+The Buildroot login prompt does not start Linux. Linux has already booted before the prompt appears:
+
+```text
+LiteX BIOS
+-> OpenSBI
+-> Linux 6.9
+-> /sbin/init
+-> filesystem mounts
+-> swap
+-> syslog/network
+-> login prompt
+```
+
+Current SD layout:
+
+```text
+/dev/mmcblk0p1   255 MiB   FAT boot
+/dev/mmcblk0p2   1.5 GiB   root filesystem mounted at /
+/dev/mmcblk0p3   4.0 GiB   swap
+/dev/mmcblk0p4   8.5 GiB   data partition mounted at /root/8gb
+```
+
+Observed free space:
+
+```text
+/           about 1.3 GiB free
+/root/8gb   about 8.0 GiB free
+```
+
+Target checks:
+
+```sh
+df -h / /root/8gb
+mount | grep mmcblk0
+cat /proc/partitions
+fdisk -l /dev/mmcblk0 2>/dev/null
+```
+
+Use `/root/8gb` for deployed binaries, staging files, logs, and application data.
+<!-- LOLV_CURRENT_RUNTIME_END -->
 
 # Install Notes
 
@@ -1822,6 +1886,44 @@ Other distributions such as Alpine are possible later, but they are not the firs
 # FILE: ./modify_readme.md
 ################################################################
 
+<!-- LOLV_SPI_MILESTONE_START -->
+## Proven external SPI milestone
+
+`soc_linux.py` now includes `SpiSlaveExt`:
+
+```text
+Jetson /dev/spidev0.0
+-> SPI mode 0
+-> OrangeCrab ECP5 pins
+-> LiteX SPISlave
+-> stable Linux mailbox
+-> raw edge counters
+-> Linux devmem / future Rust MMIO
+```
+
+Correct pins:
+
+```text
+CS0  -> GPIO:0  / N17
+SCK  -> GPIO:16 / N16
+MOSI -> GPIO:15 / R17
+MISO <- GPIO:14 / N15
+```
+
+The original fault was a physical SCK/MOSI crossover. After correction, `ff aa 55 81` produced:
+
+```text
+rx_data                        0xFFAA5581
+rx_length                      0x00000020
+raw_sck_rise_count             0x00000020
+raw_sck_fall_count             0x00000020
+raw_mosi_high_on_sck_rise      0x00000012
+raw_mosi_low_on_sck_rise       0x0000000E
+```
+
+MISO full-duplex transfer also passed. See `spi_readme.md`.
+<!-- LOLV_SPI_MILESTONE_END -->
+
 
 # Modify Notes: Custom VHDL IP wired to LiteX/Linux CSRs
 
@@ -2739,6 +2841,51 @@ This is the minimal working bridge needed before replacing `header_probe` with a
 # FILE: ./README.md
 ################################################################
 
+<!-- LOLV_LOCAL_STATUS_START -->
+## Local OrangeCrab status
+
+This checkout is the OrangeCrab Linux-on-LiteX integration tree.
+
+Current proven additions:
+
+- custom VHDL header probe exposed through LiteX CSRs;
+- Buildroot Linux boot from SD;
+- Jetson-to-OrangeCrab SPI slave gateware;
+- stable completed-transaction mailbox;
+- raw CS/SCK/MOSI diagnostic counters;
+- verified mode-0 MOSI and MISO transfers;
+- verified 32-bit receive pattern `0xFFAA5581`;
+- corrected physical SCK/MOSI crossover.
+
+Local documentation:
+
+```text
+install_readme.md     toolchain, FPGA/Linux build, SD install, boot
+modify_readme.md      custom gateware and CSR history
+i2c_oled_readme.md    OLED/I2C work
+spi_readme.md         current SPI interface and Rust transition
+basic_readme.md       deterministic quotient/VHDL checklist
+```
+
+Working paths:
+
+```bash
+export EXTERNAL="$HOME/1tb/ext"
+export WORKROOT="$HOME/1tb/see/1-c0d3/vhdl"
+export WORKDIR="$WORKROOT/lolv"
+export RUSTROOT="$WORKDIR/../../rust"
+```
+
+Rust siblings:
+
+```text
+$WORKDIR/../../rust/oled/
+$WORKDIR/../../rust/spis/
+```
+
+`rust/spis/` contains independent projects; it is not one Cargo project.
+<!-- LOLV_LOCAL_STATUS_END -->
+
 ```
                                    __   _
                                   / /  (_)__  __ ____ __
@@ -3248,25 +3395,170 @@ tools/run_luma_oled_test.py
 
 
 ################################################################
-# FILE: ./reports/orangecrab_linux_baseline.md
+# FILE: ./spi_readme.md
 ################################################################
 
-# OrangeCrab Linux baseline build report
+# OrangeCrab–Jetson SPI link
 
-Generated: 2026-06-23T16:35:37-04:00
+## Working directories
 
-## Git
+All project work starts from `lolv/`.
 
-Branch: see/orangecrab-linux-gpio-ip
-Commit: 922cea3963ac78428889a065b64730a4c69fdd43
+```bash
+export EXTERNAL="$HOME/1tb/ext"
+export WORKROOT="$HOME/1tb/see/1-c0d3/vhdl"
+export WORKDIR="$WORKROOT/lolv"
+export RUSTROOT="$WORKDIR/../../rust"
+export OLED_DIR="$RUSTROOT/oled"
+export SPIS_DIR="$RUSTROOT/spis"
+
+cd "$WORKDIR"
+source "$EXTERNAL/fpga-env.sh"
+hash -r
+```
+
+`rust/spis/` is a parent directory containing independent SPI-related projects. It is not itself a Cargo project or workspace.
+
+Current/future locations:
+
+```text
+$WORKDIR/../../rust/oled/
+    OLED-specific project
+
+$WORKDIR/../../rust/spis/basic_spi_io/
+    first generic SPI file-transfer project
+
+$WORKDIR/../../rust/spis/<future-layer2-project>/
+    future project-specific SPI control/data service
+```
+
+## Proven hardware
+
+```text
+OrangeCrab: 85F rev 0.2
+Jetson:     Orin Nano
+SPI mode:   0
+Jetson:     master, /dev/spidev0.0
+OrangeCrab: slave, LiteX SPISlave
+sys_clk:    64 MHz
+```
+
+Correct wiring:
+
+```text
+Jetson pin 24 CS0  -> OrangeCrab GPIO:0  / N17 / cs_n
+Jetson pin 23 SCK  -> OrangeCrab GPIO:16 / N16 / clk
+Jetson pin 19 MOSI -> OrangeCrab GPIO:15 / R17 / mosi
+Jetson pin 21 MISO <- OrangeCrab GPIO:14 / N15 / miso
+Jetson pin 25 GND  -> OrangeCrab GND
+```
+
+The original receive failure was caused by SCK and MOSI being physically crossed.
+
+## Gateware interface
+
+`soc_linux.py` contains `SpiSlaveExt`, which wraps LiteX `SPISlave` with:
+
+- a stable one-entry completed-RX mailbox;
+- ACK and clear controls;
+- transaction count;
+- stable RX data and bit length;
+- direct raw state;
+- independent CS/SCK/MOSI counters.
+
+The current hardware word is 32 bits. Larger software messages are fragmented above this layer.
+
+```text
+spi_ext base = 0xf0005000
+
+0xf0005000  rx_data                         RO
+0xf0005004  tx_data                         RW
+0xf0005008  rx_length                       RO
+0xf000500c  status                          RO
+0xf0005010  transaction_count               RO
+0xf0005014  control                         RW
+0xf0005018  raw_mosi                        RO
+0xf000501c  raw_length                      RO
+0xf0005020  raw_done                        RO
+0xf0005024  raw_pins                        RO
+0xf0005028  raw_cs_assert_count             RO
+0xf000502c  raw_cs_deassert_count           RO
+0xf0005030  raw_sck_rise_count              RO
+0xf0005034  raw_sck_fall_count              RO
+0xf0005038  raw_mosi_high_on_sck_rise       RO
+0xf000503c  raw_mosi_low_on_sck_rise        RO
+```
+
+Control:
+
+```text
+bit 0: ACK/drop current RX mailbox
+bit 1: clear mailbox, overrun, transaction count, and raw counters
+```
 
 Status:
-A  install_readme.md
-?? images/boot.json
-?? images/rv32.dtb
-?? reports/
 
-## Build command
+```text
+bit 0: RX valid
+bit 1: SPI busy
+bit 2: RX overrun
+```
+
+## Proven transactions
+
+Jetson sent:
+
+```text
+ff aa 55 81
+```
+
+OrangeCrab observed:
+
+```text
+rx_data                        0xFFAA5581
+rx_length                      0x00000020
+transaction_count              0x00000001
+raw_cs_assert_count            0x00000001
+raw_cs_deassert_count          0x00000001
+raw_sck_rise_count             0x00000020
+raw_sck_fall_count             0x00000020
+raw_mosi_high_on_sck_rise      0x00000012
+raw_mosi_low_on_sck_rise       0x0000000E
+```
+
+That pattern contains exactly 18 one-bits and 14 zero-bits. MISO full-duplex transfer also passed with a known 32-bit `tx_data` pattern.
+
+## Retained diagnostics
+
+```text
+tools/spi_diag_master.c
+tools/read_spi_mailbox.sh
+tools/spi_miso_jetson.sh
+tools/spi_miso_orangecrab.sh
+```
+
+Build the reproducible Jetson diagnostic binary when needed:
+
+```bash
+cd "$WORKDIR"
+
+cc -O2 -Wall -Wextra -Werror \
+  tools/spi_diag_master.c \
+  -o tools/spi_diag_master
+```
+
+Remove the compiled binary after testing:
+
+```bash
+rm -f "$WORKDIR/tools/spi_diag_master"
+```
+
+## Build and flash
+
+```bash
+cd "$WORKDIR"
+source "$EXTERNAL/fpga-env.sh"
+hash -r
 
 ./make.py \
   --board=orange_crab \
@@ -3277,250 +3569,70 @@ A  install_readme.md
   --build \
   -- \
   --sdram-device=MT41K256M16
+```
 
-## Key artifacts
+A placement timing estimate can fail before the final routed timing passes. Use the final routed timing report.
 
--rw-rw-r-- 1 seejn seejn 5.7K Jun 23 06:06 build/orange_crab/csr.csv
--rw-rw-r-- 1 seejn seejn  12K Jun 23 05:48 build/orange_crab/csr.json
--rw-rw-r-- 1 seejn seejn 618K Jun 23 06:01 build/orange_crab/gateware/orange_crab.bit
--rw-rw-r-- 1 seejn seejn 618K Jun 23 06:06 build/orange_crab/gateware/orange_crab.bit.dfu
--rw-rw-r-- 1 seejn seejn 8.6M Jun 23 06:01 build/orange_crab/gateware/orange_crab.config
--rw-rw-r-- 1 seejn seejn  32M Jun 23 05:54 build/orange_crab/gateware/orange_crab.json
--rw-rw-r-- 1 seejn seejn 6.4M Jun 23 05:54 build/orange_crab/gateware/orange_crab.rpt
--rw-rw-r-- 1 seejn seejn 1.3M Jun 23 06:01 build/orange_crab/gateware/orange_crab.svf
--rw-rw-r-- 1 seejn seejn 3.0K Jun 23 06:06 build/orange_crab/orange_crab.dtb
--rw-rw-r-- 1 seejn seejn 4.8K Jun 23 06:06 build/orange_crab/orange_crab.dts
--rw-rw-r-- 1 seejn seejn  44K Jun 23 06:06 build/orange_crab/software/bios/bios.bin
--rw-rw-r-- 1 seejn seejn 465K Jun 23 06:06 build/orange_crab/software/bios/bios.elf
--rw-rw-r-- 1 seejn seejn  34K Jun 23 06:06 build/orange_crab/software/include/generated/csr.h
--rw-rw-r-- 1 seejn seejn 1.8K Jun 23 06:06 build/orange_crab/software/include/generated/mem.h
--rw-rw-r-- 1 seejn seejn  360 Jun 23 05:48 build/orange_crab/software/include/generated/regions.ld
--rw-rw-r-- 1 seejn seejn 2.4K Jun 23 05:48 build/orange_crab/software/include/generated/variables.mak
+Create a fresh DFU image:
 
-## CSR map
+```bash
+cp -f \
+  build/orange_crab/gateware/orange_crab.bit \
+  build/orange_crab/gateware/orange_crab.bit.dfu
 
-#--------------------------------------------------------------------------------
-# Auto-generated by LiteX (97ed83b6d) on 2026-06-23 06:06:53
-#--------------------------------------------------------------------------------
-csr_base,ctrl,0xf0000000,,
-csr_base,ddrphy,0xf0000800,,
-csr_base,uart,0xf0001000,,
-csr_base,timer0,0xf0001800,,
-csr_base,i2c0,0xf0002000,,
-csr_base,identifier_mem,0xf0002800,,
-csr_base,leds,0xf0003000,,
-csr_base,sdcard,0xf0003800,,
-csr_base,sdram,0xf0004000,,
-csr_register,ctrl_reset,0xf0000000,1,rw
-csr_register,ctrl_scratch,0xf0000004,1,rw
-csr_register,ctrl_bus_errors,0xf0000008,1,ro
-csr_register,ddrphy_dly_sel,0xf0000800,1,rw
-csr_register,ddrphy_rdly_dq_rst,0xf0000804,1,rw
-csr_register,ddrphy_rdly_dq_inc,0xf0000808,1,rw
-csr_register,ddrphy_rdly_dq_bitslip_rst,0xf000080c,1,rw
-csr_register,ddrphy_rdly_dq_bitslip,0xf0000810,1,rw
-csr_register,ddrphy_burstdet_clr,0xf0000814,1,rw
-csr_register,ddrphy_burstdet_seen,0xf0000818,1,ro
-csr_register,uart_rxtx,0xf0001000,1,rw
-csr_register,uart_txfull,0xf0001004,1,ro
-csr_register,uart_rxempty,0xf0001008,1,ro
-csr_register,uart_ev_status,0xf000100c,1,ro
-csr_register,uart_ev_pending,0xf0001010,1,rw
-csr_register,uart_ev_enable,0xf0001014,1,rw
-csr_register,uart_txempty,0xf0001018,1,ro
-csr_register,uart_rxfull,0xf000101c,1,ro
-csr_register,timer0_load,0xf0001800,1,rw
-csr_register,timer0_reload,0xf0001804,1,rw
-csr_register,timer0_en,0xf0001808,1,rw
-csr_register,timer0_update_value,0xf000180c,1,rw
-csr_register,timer0_value,0xf0001810,1,ro
-csr_register,timer0_ev_status,0xf0001814,1,ro
-csr_register,timer0_ev_pending,0xf0001818,1,rw
-csr_register,timer0_ev_enable,0xf000181c,1,rw
-csr_register,i2c0_w,0xf0002000,1,rw
-csr_register,i2c0_r,0xf0002004,1,ro
-csr_register,leds_out,0xf0003000,1,rw
-csr_register,sdcard_phy_card_detect,0xf0003800,1,ro
-csr_register,sdcard_phy_clocker_divider,0xf0003804,1,rw
-csr_register,sdcard_phy_init_initialize,0xf0003808,1,rw
-csr_register,sdcard_phy_cmdr_timeout,0xf000380c,1,rw
-csr_register,sdcard_phy_dataw_status,0xf0003810,1,ro
-csr_register,sdcard_phy_datar_timeout,0xf0003814,1,rw
-csr_register,sdcard_phy_settings,0xf0003818,1,rw
-csr_register,sdcard_core_cmd_argument,0xf000381c,1,rw
-csr_register,sdcard_core_cmd_command,0xf0003820,1,rw
-csr_register,sdcard_core_cmd_send,0xf0003824,1,rw
-csr_register,sdcard_core_cmd_response,0xf0003828,4,ro
-csr_register,sdcard_core_cmd_event,0xf0003838,1,ro
-csr_register,sdcard_core_data_event,0xf000383c,1,ro
-csr_register,sdcard_core_block_length,0xf0003840,1,rw
-csr_register,sdcard_core_block_count,0xf0003844,1,rw
-csr_register,sdcard_block2mem_dma_base,0xf0003848,2,rw
-csr_register,sdcard_block2mem_dma_length,0xf0003850,1,rw
-csr_register,sdcard_block2mem_dma_enable,0xf0003854,1,rw
-csr_register,sdcard_block2mem_dma_done,0xf0003858,1,ro
-csr_register,sdcard_block2mem_dma_loop,0xf000385c,1,rw
-csr_register,sdcard_block2mem_dma_offset,0xf0003860,1,ro
-csr_register,sdcard_mem2block_dma_base,0xf0003864,2,rw
-csr_register,sdcard_mem2block_dma_length,0xf000386c,1,rw
-csr_register,sdcard_mem2block_dma_enable,0xf0003870,1,rw
-csr_register,sdcard_mem2block_dma_done,0xf0003874,1,ro
-csr_register,sdcard_mem2block_dma_loop,0xf0003878,1,rw
-csr_register,sdcard_mem2block_dma_offset,0xf000387c,1,ro
-csr_register,sdcard_ev_status,0xf0003880,1,ro
-csr_register,sdcard_ev_pending,0xf0003884,1,rw
-csr_register,sdcard_ev_enable,0xf0003888,1,rw
-csr_register,sdram_dfii_control,0xf0004000,1,rw
-csr_register,sdram_dfii_pi0_command,0xf0004004,1,rw
-csr_register,sdram_dfii_pi0_command_issue,0xf0004008,1,rw
-csr_register,sdram_dfii_pi0_address,0xf000400c,1,rw
-csr_register,sdram_dfii_pi0_baddress,0xf0004010,1,rw
-csr_register,sdram_dfii_pi0_wrdata,0xf0004014,2,rw
-csr_register,sdram_dfii_pi0_rddata,0xf000401c,2,ro
-csr_register,sdram_dfii_pi1_command,0xf0004024,1,rw
-csr_register,sdram_dfii_pi1_command_issue,0xf0004028,1,rw
-csr_register,sdram_dfii_pi1_address,0xf000402c,1,rw
-csr_register,sdram_dfii_pi1_baddress,0xf0004030,1,rw
-csr_register,sdram_dfii_pi1_wrdata,0xf0004034,2,rw
-csr_register,sdram_dfii_pi1_rddata,0xf000403c,2,ro
-constant,config_platform_name,gsd_orangecrab,,
-constant,config_clock_frequency,64000000,,
-constant,config_cpu_has_interrupt,None,,
-constant,config_cpu_reset_addr,0,,
-constant,config_cpu_count,1,,
-constant,config_cpu_isa,rv32i2p0_ma,,
-constant,config_cpu_mmu,sv32,,
-constant,config_cpu_dcache_size,4096,,
-constant,config_cpu_dcache_ways,1,,
-constant,config_cpu_dcache_block_size,64,,
-constant,config_cpu_icache_size,4096,,
-constant,config_cpu_icache_ways,1,,
-constant,config_cpu_icache_block_size,64,,
-constant,config_cpu_dtlb_size,4,,
-constant,config_cpu_dtlb_ways,4,,
-constant,config_cpu_itlb_size,4,,
-constant,config_cpu_itlb_ways,4,,
-constant,config_cpu_type_vexriscv_smp,None,,
-constant,config_cpu_variant_linux,None,,
-constant,config_cpu_family,riscv,,
-constant,config_cpu_name,vexriscv,,
-constant,config_cpu_human_name,VexRiscv SMP-LINUX,,
-constant,config_cpu_nop,nop,,
-constant,config_bios_no_build_time,None,,
-constant,config_identifier,LiteX SoC on OrangeCrab,,
-constant,config_csr_data_width,32,,
-constant,config_csr_alignment,32,,
-constant,config_csr_ordering_big,None,,
-constant,config_bus_standard,wishbone,,
-constant,config_bus_data_width,32,,
-constant,config_bus_address_width,32,,
-constant,config_bus_bursting,0,,
-constant,config_cpu_interrupts,4,,
-constant,sdcard_interrupt,3,,
-constant,timer0_interrupt,2,,
-constant,uart_interrupt,1,,
+dfu-suffix \
+  -v 1209 \
+  -p 5af0 \
+  -a \
+  build/orange_crab/gateware/orange_crab.bit.dfu
+```
 
-## Generated memory map
+Flash FPGA slot `alt 0`:
 
-//--------------------------------------------------------------------------------
-// Auto-generated by LiteX (97ed83b6d) on 2026-06-23 06:06:53
-//--------------------------------------------------------------------------------
-#ifndef __GENERATED_MEM_H
-#define __GENERATED_MEM_H
+```bash
+sudo dfu-util \
+  -a 0 \
+  -D build/orange_crab/gateware/orange_crab.bit.dfu
+```
 
-#ifndef OPENSBI_BASE
-#define OPENSBI_BASE 0x40f00000L
-#define OPENSBI_BASE_VA 0x40f00000L
-#define OPENSBI_SIZE 0x00080000
-#endif
+Do not flash the FPGA bitstream into `alt 1`.
 
-#ifndef PLIC_BASE
-#define PLIC_BASE 0xf0c00000L
-#define PLIC_BASE_VA 0xf0c00000L
-#define PLIC_SIZE 0x00400000
-#endif
+## Linux and storage
 
-#ifndef CLINT_BASE
-#define CLINT_BASE 0xf0010000L
-#define CLINT_BASE_VA 0xf0010000L
-#define CLINT_SIZE 0x00010000
-#endif
+Linux boots before login. The UART login prompt appears only after the kernel, `/sbin/init`, mounts, swap, syslog, and networking are running.
 
-#ifndef ROM_BASE
-#define ROM_BASE 0x00000000L
-#define ROM_BASE_VA 0x00000000L
-#define ROM_SIZE 0x00010000
-#endif
+```text
+/dev/mmcblk0p1   255 MiB   FAT boot partition
+/dev/mmcblk0p2   1.5 GiB   root filesystem mounted at /
+/dev/mmcblk0p3   4.0 GiB   swap
+/dev/mmcblk0p4   8.5 GiB   data filesystem mounted at /root/8gb
+```
 
-#ifndef SRAM_BASE
-#define SRAM_BASE 0x10000000L
-#define SRAM_BASE_VA 0x10000000L
-#define SRAM_SIZE 0x00001800
-#endif
+Observed free space:
 
-#ifndef MAIN_RAM_BASE
-#define MAIN_RAM_BASE 0x40000000L
-#define MAIN_RAM_BASE_VA 0x40000000L
-#define MAIN_RAM_SIZE 0x20000000
-#endif
+```text
+/           about 1.3 GiB free
+/root/8gb   about 8.0 GiB free
+```
 
-#ifndef CSR_BASE
-#define CSR_BASE 0xf0000000L
-#define CSR_BASE_VA 0xf0000000L
-#define CSR_SIZE 0x00010000
-#endif
+Check:
 
-#ifndef MEM_REGIONS
-#define MEM_REGIONS "OPENSBI   0x40f00000 0x80000 \nPLIC      0xf0c00000 0x400000 \nCLINT     0xf0010000 0x10000 \nROM       0x00000000 0x10000 \nSRAM      0x10000000 0x1800 \nMAIN_RAM  0x40000000 0x20000000 \nCSR       0xf0000000 0x10000 "
-#endif
+```sh
+df -h / /root/8gb
+mount | grep mmcblk0
+cat /proc/partitions
+```
 
-#ifndef MEM_REGIONS_DETAILS
-#define MEM_REGIONS_DETAILS "Region   Origin     End        Size \nOPENSBI  0x40f00000 0x40f7ffff 0x80000 \nPLIC     0xf0c00000 0xf0ffffff 0x400000 \nCLINT    0xf0010000 0xf001ffff 0x10000 \nROM      0x00000000 0x0000ffff 0x10000 \nSRAM     0x10000000 0x100017ff 0x1800 \nMAIN_RAM 0x40000000 0x5fffffff 0x20000000 \nCSR      0xf0000000 0xf000ffff 0x10000 "
-#endif
-#endif
+Use `/root/8gb` for transferred binaries, staging files, logs, and application data.
 
-## Generated variables
+## Next milestone
 
-TRIPLE=riscv64-linux-gnu
-CPU=vexriscv
-CPUFAMILY=riscv
-CPUFLAGS= -march=rv32i2p0_ma -mabi=ilp32 -D__vexriscv_smp__ -D__riscv_plic__
-CPUENDIANNESS=little
-CLANG=0
-CPU_DIRECTORY=/mnt/storage/ext/litex-src/litex/litex/soc/cores/cpu/vexriscv_smp
-SOC_DIRECTORY=/mnt/storage/ext/litex-src/litex/litex/soc
-export BUILDINC_DIRECTORY
-BUILDINC_DIRECTORY=/mnt/storage/see/1-c0d3/vhdl/lolv/build/orange_crab/software/include
-BIOS_DIRECTORY=/mnt/storage/ext/litex-src/litex/litex/soc/software/bios
-BIOS_CONSOLE_LITE=1
+During development, SPI ownership is manual:
 
-## Gateware summary
+- `spi_file_rx` owns OrangeCrab SPI only while it runs;
+- the OLED controller owns OrangeCrab SPI only while it runs;
+- only one is started at a time;
+- the finished layer-2 project will eventually be the sole normal owner.
 
-Baseline stock OrangeCrab Linux gateware built successfully.
-
-Key observed utilization from nextpnr:
-
-- TRELLIS_COMB: 17814 / 83640, about 21%
-- TRELLIS_FF: 8186 / 83640, about 9%
-- DP16KD: 29 / 208, about 13%
-- MULT18X18D: 4 / 156, about 2%
-- EHXPLLL: 2 / 4, about 50%
-- TRELLIS_IO: 73 / 365, about 20%
-
-Timing observed from nextpnr:
-
-- sys_clk target: 64.00 MHz
-- sys_clk achieved max frequency: about 65.83 MHz
-- sys_clk timing: PASS at 64.00 MHz
-
-Bitstream packaging:
-
-- ecppack used --compress
-- orange_crab.bit generated
-- orange_crab.bit.dfu generated
-- orange_crab.svf generated
-
-## ecppack command
-
-5:ecppack  --bootaddr 0    --compress  orange_crab.config --svf orange_crab.svf --bit orange_crab.bit
+The first project under `rust/spis/` will transfer arbitrary files from Jetson to `/root/8gb`, verify exact length and whole-file hash, and later support transactional executable replacement.
 
