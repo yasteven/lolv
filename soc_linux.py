@@ -12,7 +12,7 @@ import subprocess
 from migen import *
 
 from litex.soc.interconnect.csr import *
-from litex.build.generic_platform import Pins, IOStandard, Misc
+from litex.build.generic_platform import Pins, Subsignal, IOStandard, Misc
 
 from litex.soc.cores.cpu.vexriscv_smp import VexRiscvSMP
 from litex.soc.cores.gpio    import GPIOOut, GPIOIn
@@ -61,19 +61,203 @@ class HeaderProbe(Module, AutoCSR):
 # Linux polls `done`/`length` via CSR.
 
 class SpiSlaveExt(Module, AutoCSR):
+    # Linux-visible SPI slave with a stable one-entry receive mailbox.
+    #
+    # LiteX SPISlave performs the electrical shifting. This wrapper
+    # snapshots each completed transaction into registers that remain
+    # stable until Linux explicitly acknowledges them.
+
     def __init__(self, pads, data_width):
+        # Use LiteX SPISlave directly. It already synchronizes clk, cs_n,
+        # and mosi internally. The previous external debounce filter was
+        # inconclusive and made the raw baseline harder to interpret.
         self.submodules.spi = spi = SPISlave(pads, data_width=data_width)
 
-        self.mosi   = CSRStatus(data_width,  description="Last received MOSI data.")
-        self.miso   = CSRStorage(data_width, description="Data to shift out as MISO on next transaction.")
-        self.length = CSRStatus(8,            description="Length of last transaction, in bits.")
-        self.done   = CSRStatus(1,            description="Transaction done/idle.")
+        self.rx_data = CSRStatus(
+            data_width,
+            description="Completed MOSI transaction snapshot; stable while rx_valid=1.",
+        )
+        self.tx_data = CSRStorage(
+            data_width,
+            description="Data shifted out on MISO during subsequent SPI transactions.",
+        )
+        self.rx_length = CSRStatus(
+            8,
+            description="Bit length captured with rx_data.",
+        )
+        self.status = CSRStatus(
+            4,
+            description="bit0=rx_valid, bit1=spi_busy, bit2=rx_overrun, bit3=reserved.",
+        )
+        self.transaction_count = CSRStatus(
+            32,
+            description="Completed SPI transactions since clear/reset.",
+        )
+        self.control = CSRStorage(
+            2,
+            description=(
+                "Write bit0=1 to ACK/drop current RX mailbox; "
+                "write bit1=1 to clear mailbox, overrun, and transaction counter."
+            ),
+        )
+
+        # Raw/live diagnostic view.
+        self.raw_mosi = CSRStatus(
+            data_width,
+            description="Live LiteX SPISlave MOSI shift register.",
+        )
+        self.raw_length = CSRStatus(
+            8,
+            description="Live LiteX SPISlave bit counter.",
+        )
+        self.raw_done = CSRStatus(
+            1,
+            description="Live LiteX SPISlave done/idle signal.",
+        )
+        self.raw_pins = CSRStatus(
+            4,
+            description="Physical pins: bit0=cs_n bit1=clk bit2=mosi bit3=miso.",
+        )
+
+        self.raw_cs_assert_count = CSRStatus(32, description="Synchronized CS_N falling-edge count.")
+        self.raw_cs_deassert_count = CSRStatus(32, description="Synchronized CS_N rising-edge count.")
+        self.raw_sck_rise_count = CSRStatus(32, description="Synchronized raw SCK rising-edge count.")
+        self.raw_sck_fall_count = CSRStatus(32, description="Synchronized raw SCK falling-edge count.")
+        self.raw_mosi_high_on_sck_rise = CSRStatus(32, description="SCK rises with MOSI high.")
+        self.raw_mosi_low_on_sck_rise = CSRStatus(32, description="SCK rises with MOSI low.")
+
+        rx_data_reg = Signal(data_width, reset=0)
+        rx_length_reg = Signal(8, reset=0)
+        rx_valid = Signal(reset=0)
+        rx_overrun = Signal(reset=0)
+        transaction_count_reg = Signal(32, reset=0)
+
+        raw_cs_meta = Signal(reset=1)
+        raw_cs_sync = Signal(reset=1)
+        raw_cs_prev = Signal(reset=1)
+        raw_sck_meta = Signal(reset=0)
+        raw_sck_sync = Signal(reset=0)
+        raw_sck_prev = Signal(reset=0)
+        raw_mosi_meta = Signal(reset=0)
+        raw_mosi_sync = Signal(reset=0)
+
+        raw_cs_assert_count_reg = Signal(32, reset=0)
+        raw_cs_deassert_count_reg = Signal(32, reset=0)
+        raw_sck_rise_count_reg = Signal(32, reset=0)
+        raw_sck_fall_count_reg = Signal(32, reset=0)
+        raw_mosi_high_count_reg = Signal(32, reset=0)
+        raw_mosi_low_count_reg = Signal(32, reset=0)
+
+        raw_cs_assert = Signal()
+        raw_cs_deassert = Signal()
+        raw_sck_rise = Signal()
+        raw_sck_fall = Signal()
+
+        done_d = Signal(reset=1)
+        transaction_complete = Signal()
+        ack_pulse = Signal()
+        clear_pulse = Signal()
 
         self.comb += [
-            spi.miso.eq(self.miso.storage),
-            self.mosi.status.eq(spi.mosi),
-            self.length.status.eq(spi.length),
-            self.done.status.eq(spi.done),
+            spi.miso.eq(self.tx_data.storage),
+
+            transaction_complete.eq(~done_d & spi.done),
+            ack_pulse.eq(self.control.re & self.control.storage[0]),
+            clear_pulse.eq(self.control.re & self.control.storage[1]),
+
+            self.rx_data.status.eq(rx_data_reg),
+            self.rx_length.status.eq(rx_length_reg),
+            self.transaction_count.status.eq(transaction_count_reg),
+            self.status.status.eq(Cat(
+                rx_valid,
+                ~spi.done,
+                rx_overrun,
+                0,
+            )),
+
+            self.raw_mosi.status.eq(spi.mosi),
+            self.raw_length.status.eq(spi.length),
+            self.raw_done.status.eq(spi.done),
+            self.raw_pins.status.eq(Cat(
+                pads.cs_n,
+                pads.clk,
+                pads.mosi,
+                pads.miso,
+            )),
+
+            raw_cs_assert.eq(raw_cs_prev & ~raw_cs_sync),
+            raw_cs_deassert.eq(~raw_cs_prev & raw_cs_sync),
+            raw_sck_rise.eq(~raw_sck_prev & raw_sck_sync),
+            raw_sck_fall.eq(raw_sck_prev & ~raw_sck_sync),
+
+            self.raw_cs_assert_count.status.eq(raw_cs_assert_count_reg),
+            self.raw_cs_deassert_count.status.eq(raw_cs_deassert_count_reg),
+            self.raw_sck_rise_count.status.eq(raw_sck_rise_count_reg),
+            self.raw_sck_fall_count.status.eq(raw_sck_fall_count_reg),
+            self.raw_mosi_high_on_sck_rise.status.eq(raw_mosi_high_count_reg),
+            self.raw_mosi_low_on_sck_rise.status.eq(raw_mosi_low_count_reg),
+        ]
+
+        self.sync += [
+            done_d.eq(spi.done),
+
+            raw_cs_meta.eq(pads.cs_n),
+            raw_cs_sync.eq(raw_cs_meta),
+            raw_cs_prev.eq(raw_cs_sync),
+
+            raw_sck_meta.eq(pads.clk),
+            raw_sck_sync.eq(raw_sck_meta),
+            raw_sck_prev.eq(raw_sck_sync),
+
+            raw_mosi_meta.eq(pads.mosi),
+            raw_mosi_sync.eq(raw_mosi_meta),
+
+            If(clear_pulse,
+                rx_data_reg.eq(0),
+                rx_length_reg.eq(0),
+                rx_valid.eq(0),
+                rx_overrun.eq(0),
+                transaction_count_reg.eq(0),
+                raw_cs_assert_count_reg.eq(0),
+                raw_cs_deassert_count_reg.eq(0),
+                raw_sck_rise_count_reg.eq(0),
+                raw_sck_fall_count_reg.eq(0),
+                raw_mosi_high_count_reg.eq(0),
+                raw_mosi_low_count_reg.eq(0),
+            ).Else(
+                If(raw_cs_assert,
+                    raw_cs_assert_count_reg.eq(raw_cs_assert_count_reg + 1),
+                ),
+                If(raw_cs_deassert,
+                    raw_cs_deassert_count_reg.eq(raw_cs_deassert_count_reg + 1),
+                ),
+                If(raw_sck_rise,
+                    raw_sck_rise_count_reg.eq(raw_sck_rise_count_reg + 1),
+                    If(raw_mosi_sync,
+                        raw_mosi_high_count_reg.eq(raw_mosi_high_count_reg + 1),
+                    ).Else(
+                        raw_mosi_low_count_reg.eq(raw_mosi_low_count_reg + 1),
+                    ),
+                ),
+                If(raw_sck_fall,
+                    raw_sck_fall_count_reg.eq(raw_sck_fall_count_reg + 1),
+                ),
+                If(ack_pulse,
+                    rx_valid.eq(0),
+                ),
+
+                If(transaction_complete,
+                    transaction_count_reg.eq(transaction_count_reg + 1),
+
+                    If(rx_valid & ~ack_pulse,
+                        rx_overrun.eq(1),
+                    ).Else(
+                        rx_data_reg.eq(spi.mosi),
+                        rx_length_reg.eq(spi.length),
+                        rx_valid.eq(1),
+                    ),
+                ),
+            ),
         ]
 
 
@@ -158,17 +342,17 @@ def SoCLinux(soc_cls, **kwargs):
             # 256-byte (2048-bit) transactions.
             self.platform.add_extension([
                 ("spi_ext", 0,
-                    Subsignal("cs_n", Pins("N17")),
+                    Subsignal("cs_n", Pins("N17"), Misc("PULLMODE=UP")),
                     Subsignal("clk",  Pins("N16")),
-                    Subsignal("mosi", Pins("R17")),
-                    Subsignal("miso", Pins("N15")),
+                    Subsignal("mosi", Pins("R17"), Misc("PULLMODE=UP")),
+                    Subsignal("miso", Pins("N15"), Misc("PULLMODE=UP")),
                     IOStandard("LVCMOS33"),
-                    Misc("PULLMODE=UP"),
+                    Misc("SLEWRATE=SLOW"),
                 )
             ])
             self.submodules.spi_ext = SpiSlaveExt(
                 pads       = self.platform.request("spi_ext", 0),
-                data_width = 256 * 8,
+                data_width = 32,  # shrunk from 2048 -- 256B framing now happens in software
             )
             # Keep spi_ext away from CSR bank 0 (ctrl) and bank 9 (header_probe).
             self.csr.add("spi_ext", n=10)
