@@ -4,12 +4,12 @@ set -euo pipefail
 ROOT="$(pwd)"
 OUT_DIR="./reports"
 OLED_ROOT="$(readlink -f ../../rust/oled)"
-BASIC_SPI_ROOT="$(readlink -f ../../rust/spis/basic_spi_io)"
+ASI_ROOT="$(readlink -f ../../rust/spis/async_spi_interface)"
 
 DOCS_OUT="$OUT_DIR/cat_lolv_readmes.txt"
 SCRIPTS_OUT="$OUT_DIR/cat_lolv_modified_scripts.txt"
 OLED_OUT="$OUT_DIR/cat_rust_oled.txt"
-BASIC_SPI_OUT="$OUT_DIR/cat_rust_spis_basic_spi_io.txt"
+ASI_OUT="$OUT_DIR/cat_rust_spis_async_spi_interface.txt"
 ALL_OUT="$OUT_DIR/cat_lolv_all.txt"
 
 mkdir -p "$OUT_DIR"
@@ -17,7 +17,7 @@ mkdir -p "$OUT_DIR"
 : > "$DOCS_OUT"
 : > "$SCRIPTS_OUT"
 : > "$OLED_OUT"
-: > "$BASIC_SPI_OUT"
+: > "$ASI_OUT"
 : > "$ALL_OUT"
 
 write_header() {
@@ -70,7 +70,7 @@ append_slash_file() {
 write_header "$DOCS_OUT" "LOLV README / DOCS" "$ROOT"
 write_header "$SCRIPTS_OUT" "LOLV MODIFIED SCRIPTS / GATEWARE / CONFIGS" "$ROOT"
 write_header "$OLED_OUT" "RUST OLED WORKSPACE SOURCE / INFO" "$OLED_ROOT"
-write_header "$BASIC_SPI_OUT" "RUST BASIC SPI IO WORKSPACE SOURCE / INFO" "$BASIC_SPI_ROOT"
+write_header "$ASI_OUT" "RUST ASYNC SPI INTERFACE SOURCE / INFO" "$ASI_ROOT"
 
 echo "== collecting lolv README/docs =="
 
@@ -82,6 +82,7 @@ find . \
   -path './target' -prune -o \
   -path './__pycache__' -prune -o \
   -path './reports' -prune -o \
+  -iname '*bsi*' -prune -o \
   -type f \( -name '*.md' -o -name '*.txt' \) -print \
 | sort \
 | while IFS= read -r file; do
@@ -101,6 +102,7 @@ find . \
   -path './target' -prune -o \
   -path './__pycache__' -prune -o \
   -path './reports' -prune -o \
+  -iname '*bsi*' -prune -o \
   -type f \( \
       -name '*.py' -o \
       -name '*.sh' -o \
@@ -158,19 +160,34 @@ done
 echo "wrote $OLED_OUT"
 
 echo
-echo "== collecting ../../rust/spis/basic_spi_io source and info =="
+echo "== collecting ../../rust/spis/async_spi_interface source and info =="
 
-if [[ ! -d "$BASIC_SPI_ROOT" ]]; then
-    echo "ERROR: missing basic_spi_io workspace: $BASIC_SPI_ROOT" >&2
+if [[ ! -d "$ASI_ROOT" ]]; then
+    echo "ERROR: missing async_spi_interface workspace: $ASI_ROOT" >&2
     exit 1
 fi
 
-find "$BASIC_SPI_ROOT"   -path "$BASIC_SPI_ROOT/.git" -prune -o   -path '*/target' -prune -o   -path '*/.git' -prune -o   -path '*/node_modules' -prune -o   -type f \(       -name '*.rs' -o       -name '*.toml' -o       -name '*.lock' -o       -name '*.json' -o       -name '*.md' -o       -name '*.txt' -o       -name '*.sh'     \) -print | sort | while IFS= read -r file; do
-    rel="${file#"$BASIC_SPI_ROOT"/}"
-    append_slash_file "$BASIC_SPI_OUT" "../../rust/spis/basic_spi_io/$rel" "$file"
+find "$ASI_ROOT" \
+  -path "$ASI_ROOT/.git" -prune -o \
+  -path '*/target' -prune -o \
+  -path '*/.git' -prune -o \
+  -path '*/node_modules' -prune -o \
+  -type f \( \
+      -name '*.rs' -o \
+      -name '*.toml' -o \
+      -name '*.lock' -o \
+      -name '*.json' -o \
+      -name '*.md' -o \
+      -name '*.txt' -o \
+      -name '*.sh' \
+    \) -print \
+| sort \
+| while IFS= read -r file; do
+    rel="${file#"$ASI_ROOT"/}"
+    append_slash_file "$ASI_OUT" "../../rust/spis/async_spi_interface/$rel" "$file"
 done
 
-echo "wrote $BASIC_SPI_OUT"
+echo "wrote $ASI_OUT"
 
 {
     echo "================================================================"
@@ -183,13 +200,13 @@ echo "wrote $BASIC_SPI_OUT"
     echo "  1. LOLV README/docs"
     echo "  2. LOLV modified scripts/gateware/configs"
     echo "  3. ../../rust/oled source, manifests, and info"
-    echo "  4. ../../rust/spis/basic_spi_io source, manifests, tools, and docs"
+    echo "  4. ../../rust/spis/async_spi_interface source, manifests, tools, and docs"
     echo
     echo "Generated component files:"
     echo "  $DOCS_OUT"
     echo "  $SCRIPTS_OUT"
     echo "  $OLED_OUT"
-    echo "  $BASIC_SPI_OUT"
+    echo "  $ASI_OUT"
     echo
     echo
     echo "################################################################"
@@ -214,10 +231,10 @@ echo "wrote $BASIC_SPI_OUT"
     echo
     echo
     echo "################################################################"
-    echo "# SECTION 4: RUST BASIC SPI IO SOURCE / INFO"
+    echo "# SECTION 4: RUST ASYNC SPI INTERFACE SOURCE / INFO"
     echo "################################################################"
     echo
-    cat "$BASIC_SPI_OUT"
+    cat "$ASI_OUT"
     echo
 } >> "$ALL_OUT"
 
@@ -225,15 +242,15 @@ echo "wrote $ALL_OUT"
 
 echo
 echo "== aggregate sizes =="
-ls -lh "$DOCS_OUT" "$SCRIPTS_OUT" "$OLED_OUT" "$BASIC_SPI_OUT" "$ALL_OUT"
+ls -lh "$DOCS_OUT" "$SCRIPTS_OUT" "$OLED_OUT" "$ASI_OUT" "$ALL_OUT"
 
 echo
 echo "== OLED files captured =="
 grep -c '^// FILE: ../../rust/oled/' "$OLED_OUT" || true
 
 echo
-echo "== basic_spi_io files captured =="
-grep -c '^// FILE: ../../rust/spis/basic_spi_io/' "$BASIC_SPI_OUT" || true
+echo "== async_spi_interface files captured =="
+grep -c '^// FILE: ../../rust/spis/async_spi_interface/' "$ASI_OUT" || true
 
 echo
 echo "DONE."
