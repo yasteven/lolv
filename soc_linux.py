@@ -155,6 +155,12 @@ class SpiSlaveExt(Module, AutoCSR):
 
         done_d = Signal(reset=1)
         transaction_complete = Signal()
+        # CSRStorage.storage is updated on the same edge that asserts re.
+        # Pipeline the write indication and value so ACK/CLEAR decode the newly
+        # written control word, never the previous CSR value.
+        control_re_d = Signal(reset=0)
+        control_fire = Signal(reset=0)
+        control_bits = Signal(2, reset=0)
         ack_pulse = Signal()
         clear_pulse = Signal()
 
@@ -162,8 +168,8 @@ class SpiSlaveExt(Module, AutoCSR):
             spi.miso.eq(self.tx_data.storage),
 
             transaction_complete.eq(~done_d & spi.done),
-            ack_pulse.eq(self.control.re & self.control.storage[0]),
-            clear_pulse.eq(self.control.re & self.control.storage[1]),
+            ack_pulse.eq(control_fire & control_bits[0]),
+            clear_pulse.eq(control_fire & control_bits[1]),
 
             self.rx_data.status.eq(rx_data_reg),
             self.rx_length.status.eq(rx_length_reg),
@@ -199,6 +205,14 @@ class SpiSlaveExt(Module, AutoCSR):
         ]
 
         self.sync += [
+            # First delay reaches the cycle in which storage contains the new
+            # bus value; the second delay fires after that value is captured.
+            control_re_d.eq(self.control.re),
+            control_fire.eq(control_re_d),
+            If(control_re_d,
+                control_bits.eq(self.control.storage),
+            ),
+
             done_d.eq(spi.done),
 
             raw_cs_meta.eq(pads.cs_n),
