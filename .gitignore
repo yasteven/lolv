@@ -39,3 +39,17 @@ images/rootfs.cpio
 images/rootfs.cpio.gz
 images/rootfs.ext4
 images/rv32.dtb
+
+# BEGIN ASI generated work products
+# Source-collection reports are snapshots, not source.
+/reports/cat_*.txt
+
+# Locally compiled diagnostic executable; keep spi_diag_master.c.
+/tools/spi_diag_master
+
+# Downloaded/bootstrap copies. Canonical versions belong in rust/spis.
+/asi_install.sh
+/run_asi_small_test.sh
+/run_bsi_push_test_v0_3_1.sh
+/BSI_v0_3_1_README.md
+# END ASI generated work products
