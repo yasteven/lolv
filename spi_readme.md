@@ -255,3 +255,22 @@ Synthesize the 4096-word RX FIFO image, verify the legacy and new CSR addresses,
 and timing use, then flash FPGA slot `alt 0`. After reboot, cross-build ASI, deploy it once
 through the SD card, and run the speed/volume acceptance ladder. Do not flash FPGA slot
 `alt 1`.
+
+## ASI 0.3 continuous-CS physical transport
+
+Tegra accepted sixteen four-byte transfers in one ioctl but produced CS-high pulses too
+short for the synchronized FPGA input. The measured result was a correct FIFO capacity,
+no backlog, sticky status `0x8`, and a partial-word drop. Retrying through separate ioctls
+worked but restored roughly one userspace round trip per word and was not acceptable for
+binary deployment.
+
+ASI 0.3 makes CS a block envelope. Gateware samples SPI mode 0 in the 64 MHz system clock
+domain and enqueues each complete group of 32 bits, whether or not CS remains asserted.
+The Jetson sends one descriptor containing up to the confirmed 4096-byte spidev buffer.
+An 8192-byte protocol chunk therefore uses two data ioctls. CS deassertion on a non-32-bit
+boundary remains a sticky diagnosed fault. The CSR bank and all existing offsets remain
+unchanged.
+
+The old OrangeCrab ASI 0.1 receiver remains wire-compatible for one bootstrap transfer.
+After the continuous-CS image passes the small-file test, use it to receive the newly
+cross-built ASI 0.3 binary and atomically replace `/root/8gb/spis/bin/asi`.

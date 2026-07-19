@@ -18,7 +18,7 @@ from litex.build.generic_platform import Pins, Subsignal, IOStandard, Misc
 
 from litex.soc.cores.cpu.vexriscv_smp import VexRiscvSMP
 from litex.soc.cores.gpio    import GPIOOut, GPIOIn
-from litex.soc.cores.spi     import SPIMaster, SPISlave
+from litex.soc.cores.spi     import SPIMaster
 from litex.soc.cores.bitbang import I2CMaster
 from litex.soc.cores.pwm     import PWM
 
@@ -55,43 +55,40 @@ class HeaderProbe(Module, AutoCSR):
         self.comb += self.pins_in.status.eq(pins_in)
 
 
-# SPI Slave Ext CSR wrapper -------------------------------------------------------------------------
+# ASI continuous-CS SPI stream and CSR wrapper -------------------------------------------------------
 #
-# Thin CSR shim around LiteX's existing litex.soc.cores.spi.SPISlave core --
-# same pattern as HeaderProbe, just wrapping an already-written module
-# instead of custom VHDL. No IRQ for v1 (kept boring per basic_readme.md);
-# Linux polls `done`/`length` via CSR.
+# The sys-clock-domain sampler frames every 32 SPI mode-0 bits into the EBR
+# FIFO. Linux polls the stable FIFO head and explicitly ACKs each word.
 
 class SpiSlaveExt(Module, AutoCSR):
-    """32-bit SPI slave with an EBR-backed Linux receive queue.
+    """Continuous-CS SPI word framer with an EBR-backed Linux receive queue.
 
-    LiteX SPISlave owns pin sampling and clock-domain synchronization. Every
-    complete, CS-delimited 32-bit transaction is enqueued in system-clock
-    domain. Linux reads the head through rx_data and pops it with CONTROL_ACK,
-    preserving the original mailbox CSR API while eliminating its one-word
-    overrun limit.
+    The Tegra controller cannot provide a reliably observable CS-high interval
+    between descriptors in one SPI_IOC_MESSAGE. This core therefore treats CS
+    as a stream envelope and commits every complete group of 32 sampled bits as
+    one FIFO word. CS may stay asserted across thousands of bits; a partial
+    final word is rejected when CS deasserts.
     """
 
     RX_FIFO_DEPTH = 4096
 
     def __init__(self, pads, data_width):
         if data_width != 32:
-            raise ValueError("SpiSlaveExt FIFO transport requires 32-bit words")
+            raise ValueError("SpiSlaveExt stream transport requires 32-bit words")
 
-        self.submodules.spi = spi = SPISlave(pads, data_width=data_width)
         self.submodules.rx_fifo = rx_fifo = ResetInserter()(
             SyncFIFOBuffered(width=data_width, depth=self.RX_FIFO_DEPTH)
         )
 
-        # Keep the original mailbox-facing register order stable. rx_data is
-        # now the FIFO head and ACK pops exactly one queued word.
+        # Preserve every existing CSR offset. New FIFO diagnostics remain
+        # appended after the legacy raw diagnostics.
         self.rx_data = CSRStatus(
             data_width,
             description="Head of the SPI RX FIFO; valid while status bit0 is set.",
         )
         self.tx_data = CSRStorage(
             data_width,
-            description="Word shifted out on MISO during subsequent SPI transactions.",
+            description="32-bit response repeated on MISO for each streamed word.",
         )
         self.rx_length = CSRStatus(
             8,
@@ -100,26 +97,25 @@ class SpiSlaveExt(Module, AutoCSR):
         self.status = CSRStatus(
             4,
             description=(
-                "bit0=rx_fifo_readable, bit1=spi_busy, bit2=rx_overflow, "
-                "bit3=invalid_transaction_length."
+                "bit0=rx_fifo_readable, bit1=spi_cs_active, bit2=rx_overflow, "
+                "bit3=partial_word_at_cs_deassertion."
             ),
         )
         self.transaction_count = CSRStatus(
             32,
-            description="Completed SPI transactions since clear/reset.",
+            description="Complete 32-bit SPI words framed since clear/reset.",
         )
         self.control = CSRStorage(
             2,
             description=(
                 "Write bit0=1 to pop one RX FIFO word; write bit1=1 to reset "
-                "the FIFO, faults, diagnostics, and transaction counter."
+                "the FIFO, framer, faults, diagnostics, and counters."
             ),
         )
 
-        # Raw/live diagnostic view. These remain at their existing CSR offsets.
-        self.raw_mosi = CSRStatus(data_width, description="Live LiteX SPISlave MOSI shift register.")
-        self.raw_length = CSRStatus(8, description="Live LiteX SPISlave bit counter.")
-        self.raw_done = CSRStatus(1, description="Live LiteX SPISlave done/idle signal.")
+        self.raw_mosi = CSRStatus(data_width, description="Live SPI stream receive shift register.")
+        self.raw_length = CSRStatus(8, description="Bits collected in the current stream word.")
+        self.raw_done = CSRStatus(1, description="One while synchronized CS_N is inactive.")
         self.raw_pins = CSRStatus(
             4,
             description="Physical pins: bit0=cs_n bit1=clk bit2=mosi bit3=miso.",
@@ -131,7 +127,6 @@ class SpiSlaveExt(Module, AutoCSR):
         self.raw_mosi_high_on_sck_rise = CSRStatus(32, description="SCK rises with MOSI high.")
         self.raw_mosi_low_on_sck_rise = CSRStatus(32, description="SCK rises with MOSI low.")
 
-        # New FIFO CSRs are appended after all legacy offsets.
         self.rx_fifo_level = CSRStatus(
             13,
             description="Number of unread 32-bit words in the SPI RX FIFO.",
@@ -142,13 +137,8 @@ class SpiSlaveExt(Module, AutoCSR):
         )
         self.rx_dropped_count = CSRStatus(
             32,
-            description="Transactions dropped due to overflow or non-32-bit length.",
+            description="Words dropped by overflow plus partial CS-delimited words.",
         )
-
-        rx_overflow = Signal(reset=0)
-        invalid_length = Signal(reset=0)
-        transaction_count_reg = Signal(32, reset=0)
-        rx_dropped_count_reg = Signal(32, reset=0)
 
         raw_cs_meta = Signal(reset=1)
         raw_cs_sync = Signal(reset=1)
@@ -159,6 +149,25 @@ class SpiSlaveExt(Module, AutoCSR):
         raw_mosi_meta = Signal(reset=0)
         raw_mosi_sync = Signal(reset=0)
 
+        raw_cs_assert = Signal()
+        raw_cs_deassert = Signal()
+        raw_sck_rise = Signal()
+        raw_sck_fall = Signal()
+        cs_active = Signal()
+
+        rx_shift = Signal(data_width, reset=0)
+        tx_shift = Signal(data_width, reset=0)
+        bit_count = Signal(max=data_width, reset=0)
+        completed_word = Signal(data_width)
+        word_complete = Signal()
+        partial_word_event = Signal()
+        fifo_overflow_event = Signal()
+
+        rx_overflow = Signal(reset=0)
+        invalid_length = Signal(reset=0)
+        transaction_count_reg = Signal(32, reset=0)
+        rx_dropped_count_reg = Signal(32, reset=0)
+
         raw_cs_assert_count_reg = Signal(32, reset=0)
         raw_cs_deassert_count_reg = Signal(32, reset=0)
         raw_sck_rise_count_reg = Signal(32, reset=0)
@@ -166,48 +175,44 @@ class SpiSlaveExt(Module, AutoCSR):
         raw_mosi_high_count_reg = Signal(32, reset=0)
         raw_mosi_low_count_reg = Signal(32, reset=0)
 
-        raw_cs_assert = Signal()
-        raw_cs_deassert = Signal()
-        raw_sck_rise = Signal()
-        raw_sck_fall = Signal()
-
-        done_d = Signal(reset=1)
-        transaction_complete = Signal()
-
-        # CSRStorage.storage is updated on the same edge that asserts re.
-        # Capture it after that edge and fire once on the following cycle.
+        # CSRStorage.storage updates on the edge that asserts re. Delay and
+        # capture the write so ACK and CLEAR are exactly one system-clock pulse.
         control_re_d = Signal(reset=0)
         control_fire = Signal(reset=0)
         control_bits = Signal(2, reset=0)
         ack_pulse = Signal()
         clear_pulse = Signal()
 
-        valid_word_complete = Signal()
-        fifo_overflow_event = Signal()
-        invalid_length_event = Signal()
-
         self.comb += [
-            spi.miso.eq(self.tx_data.storage),
+            cs_active.eq(~raw_cs_sync),
+            raw_cs_assert.eq(raw_cs_prev & ~raw_cs_sync),
+            raw_cs_deassert.eq(~raw_cs_prev & raw_cs_sync),
+            raw_sck_rise.eq(~raw_sck_prev & raw_sck_sync),
+            raw_sck_fall.eq(raw_sck_prev & ~raw_sck_sync),
 
-            transaction_complete.eq(~done_d & spi.done),
-            valid_word_complete.eq(transaction_complete & (spi.length == data_width)),
-            fifo_overflow_event.eq(valid_word_complete & ~rx_fifo.writable),
-            invalid_length_event.eq(transaction_complete & (spi.length != data_width)),
+            completed_word.eq(Cat(raw_mosi_sync, rx_shift[:data_width - 1])),
+            word_complete.eq(cs_active & raw_sck_rise & (bit_count == data_width - 1)),
+            partial_word_event.eq(raw_cs_deassert & (bit_count != 0)),
+            fifo_overflow_event.eq(word_complete & ~rx_fifo.writable),
 
             ack_pulse.eq(control_fire & control_bits[0]),
             clear_pulse.eq(control_fire & control_bits[1]),
 
-            rx_fifo.din.eq(spi.mosi),
-            rx_fifo.we.eq(valid_word_complete & rx_fifo.writable & ~clear_pulse),
+            rx_fifo.din.eq(completed_word),
+            rx_fifo.we.eq(word_complete & rx_fifo.writable & ~clear_pulse),
             rx_fifo.re.eq(ack_pulse & rx_fifo.readable & ~clear_pulse),
             rx_fifo.reset.eq(clear_pulse),
+
+            # SPI mode 0: present MSB before the rising sample edge and change
+            # MISO only after synchronized falling edges.
+            pads.miso.eq(tx_shift[data_width - 1]),
 
             self.rx_data.status.eq(rx_fifo.dout),
             self.rx_length.status.eq(Mux(rx_fifo.readable, data_width, 0)),
             self.transaction_count.status.eq(transaction_count_reg),
             self.status.status.eq(Cat(
                 rx_fifo.readable,
-                ~spi.done,
+                cs_active,
                 rx_overflow,
                 invalid_length,
             )),
@@ -215,16 +220,10 @@ class SpiSlaveExt(Module, AutoCSR):
             self.rx_fifo_capacity.status.eq(self.RX_FIFO_DEPTH),
             self.rx_dropped_count.status.eq(rx_dropped_count_reg),
 
-            self.raw_mosi.status.eq(spi.mosi),
-            self.raw_length.status.eq(spi.length),
-            self.raw_done.status.eq(spi.done),
+            self.raw_mosi.status.eq(rx_shift),
+            self.raw_length.status.eq(bit_count),
+            self.raw_done.status.eq(~cs_active),
             self.raw_pins.status.eq(Cat(pads.cs_n, pads.clk, pads.mosi, pads.miso)),
-
-            raw_cs_assert.eq(raw_cs_prev & ~raw_cs_sync),
-            raw_cs_deassert.eq(~raw_cs_prev & raw_cs_sync),
-            raw_sck_rise.eq(~raw_sck_prev & raw_sck_sync),
-            raw_sck_fall.eq(raw_sck_prev & ~raw_sck_sync),
-
             self.raw_cs_assert_count.status.eq(raw_cs_assert_count_reg),
             self.raw_cs_deassert_count.status.eq(raw_cs_deassert_count_reg),
             self.raw_sck_rise_count.status.eq(raw_sck_rise_count_reg),
@@ -240,8 +239,6 @@ class SpiSlaveExt(Module, AutoCSR):
                 control_bits.eq(self.control.storage),
             ),
 
-            done_d.eq(spi.done),
-
             raw_cs_meta.eq(pads.cs_n),
             raw_cs_sync.eq(raw_cs_meta),
             raw_cs_prev.eq(raw_cs_sync),
@@ -252,6 +249,9 @@ class SpiSlaveExt(Module, AutoCSR):
             raw_mosi_sync.eq(raw_mosi_meta),
 
             If(clear_pulse,
+                rx_shift.eq(0),
+                tx_shift.eq(self.tx_data.storage),
+                bit_count.eq(0),
                 rx_overflow.eq(0),
                 invalid_length.eq(0),
                 transaction_count_reg.eq(0),
@@ -264,30 +264,50 @@ class SpiSlaveExt(Module, AutoCSR):
                 raw_mosi_low_count_reg.eq(0),
             ).Else(
                 If(raw_cs_assert,
+                    tx_shift.eq(self.tx_data.storage),
+                    bit_count.eq(0),
                     raw_cs_assert_count_reg.eq(raw_cs_assert_count_reg + 1),
                 ),
                 If(raw_cs_deassert,
+                    bit_count.eq(0),
                     raw_cs_deassert_count_reg.eq(raw_cs_deassert_count_reg + 1),
                 ),
-                If(raw_sck_rise,
-                    raw_sck_rise_count_reg.eq(raw_sck_rise_count_reg + 1),
+
+                If(cs_active & raw_sck_rise,
+                    rx_shift.eq(completed_word),
+                    If(bit_count == data_width - 1,
+                        bit_count.eq(0),
+                        transaction_count_reg.eq(transaction_count_reg + 1),
+                    ).Else(
+                        bit_count.eq(bit_count + 1),
+                    ),
                     If(raw_mosi_sync,
                         raw_mosi_high_count_reg.eq(raw_mosi_high_count_reg + 1),
                     ).Else(
                         raw_mosi_low_count_reg.eq(raw_mosi_low_count_reg + 1),
                     ),
                 ),
+
+                If(cs_active & raw_sck_fall,
+                    If(bit_count == 0,
+                        tx_shift.eq(self.tx_data.storage),
+                    ).Else(
+                        tx_shift.eq(Cat(0, tx_shift[:data_width - 1])),
+                    ),
+                ),
+
+                If(raw_sck_rise,
+                    raw_sck_rise_count_reg.eq(raw_sck_rise_count_reg + 1),
+                ),
                 If(raw_sck_fall,
                     raw_sck_fall_count_reg.eq(raw_sck_fall_count_reg + 1),
                 ),
 
-                If(transaction_complete,
-                    transaction_count_reg.eq(transaction_count_reg + 1),
-                ),
                 If(fifo_overflow_event,
                     rx_overflow.eq(1),
                     rx_dropped_count_reg.eq(rx_dropped_count_reg + 1),
-                ).Elif(invalid_length_event,
+                ),
+                If(partial_word_event,
                     invalid_length.eq(1),
                     rx_dropped_count_reg.eq(rx_dropped_count_reg + 1),
                 ),
