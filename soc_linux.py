@@ -14,6 +14,7 @@ from migen.fhdl.decorators import ResetInserter
 from migen.genlib.fifo import SyncFIFOBuffered
 
 from litex.soc.interconnect.csr import *
+from litex.soc.interconnect.csr_eventmanager import EventManager, EventSourceLevel, EventSourcePulse
 from litex.build.generic_platform import Pins, Subsignal, IOStandard, Misc
 
 from litex.soc.cores.cpu.vexriscv_smp import VexRiscvSMP
@@ -314,6 +315,19 @@ class SpiSlaveExt(Module, AutoCSR):
             ),
         ]
 
+        # Interrupt sources: a level line that stays asserted while the RX FIFO
+        # holds at least one word (so the handler drains until empty and then
+        # sleeps), plus a pulse for FIFO overflow.  This lets the Linux driver
+        # sleep on the SPI IRQ instead of busy-polling the CSRs.
+        self.submodules.ev = EventManager()
+        self.ev.rx_available = EventSourceLevel(description="RX FIFO has at least one word.")
+        self.ev.rx_overflow = EventSourcePulse(description="RX FIFO overflowed.")
+        self.ev.finalize()
+        self.comb += [
+            self.ev.rx_available.trigger.eq(rx_fifo.readable),
+            self.ev.rx_overflow.trigger.eq(fifo_overflow_event),
+        ]
+
 
 # SoCLinux -----------------------------------------------------------------------------------------
 
@@ -410,6 +424,7 @@ def SoCLinux(soc_cls, **kwargs):
             )
             # Keep spi_ext away from CSR bank 0 (ctrl) and bank 9 (header_probe).
             self.csr.add("spi_ext", n=10)
+            self.irq.add("spi_ext")
 
 
         # RGB Led ----------------------------------------------------------------------------------
@@ -478,6 +493,47 @@ def SoCLinux(soc_cls, **kwargs):
                         "rootwait root=/dev/nfs",
                         f"root=/dev/nfs nfsroot={nfsroot}",
                     )
+
+                # Inject a device-tree node for the custom SpiSlaveExt mailbox.
+                # litex_json2dts_linux does not know this peripheral, so it
+                # emits the CSRs and the interrupt number but no bindable node.
+                # The lolv_spi kernel driver binds to compatible="lolv,spi-ext";
+                # reg is the spi_ext CSR window and interrupts is the PLIC line
+                # LiteX assigned via self.irq.add("spi_ext") (read from csr.json
+                # so a remap can never desync this from the hardware).
+                spi_ext_irq = None
+                try:
+                    with open(json_src) as jf:
+                        csr = json.load(jf)
+                    spi_ext_irq = csr.get("constants", {}).get("spi_ext_interrupt")
+                    if spi_ext_irq is None:
+                        spi_ext_irq = csr.get("spi_ext_interrupt")
+                except (OSError, ValueError):
+                    spi_ext_irq = None
+                if spi_ext_irq is not None and "spi-ext@f0005000" not in dts_content:
+                    # Generated DTS uses space indentation: soc children at 12
+                    # spaces, the soc node closing brace at 8 spaces.
+                    spi_ext_node = (
+                        "            spi_ext0: spi-ext@f0005000 {\n"
+                        "                compatible = \"lolv,spi-ext\";\n"
+                        "                reg = <0xf0005000 0x100>;\n"
+                        f"                interrupts = <{int(spi_ext_irq)}>;\n"
+                        "                status = \"okay\";\n"
+                        "            };\n"
+                    )
+                    # The soc node closes with an 8-space '};' immediately before
+                    # the top-level 'aliases {' block.  Insert our node just
+                    # before that closing brace so it lands inside soc{}.
+                    marker = "\n        aliases {"
+                    idx = dts_content.find(marker)
+                    if idx != -1:
+                        close = dts_content.rfind("\n        };", 0, idx)
+                        if close != -1:
+                            dts_content = (
+                                dts_content[:close] + "\n" + spi_ext_node
+                                + dts_content[close:]
+                            )
+
                 dts_file.write(dts_content)
 
         # DTS compilation --------------------------------------------------------------------------
