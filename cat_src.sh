@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
+# Regenerate the AI-context dumps into info/.
+#
+# Excludes archived docs/tools and generated junk so the aggregate stays small
+# enough to actually hand to a model.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 cd "$ROOT"
 
-OUT_DIR="$ROOT/reports"
-OLED_ROOT="$(readlink -f "$ROOT/../../rust/oled")"
-SPIS_ROOT="$(readlink -f "$ROOT/../../rust/spis")"
+OUT_DIR="$ROOT/info"
+# readlink -f exits non-zero on a missing path, which under `set -e` made
+# the old script die silently. Resolve, then report clearly if absent.
+OLED_ROOT="$(readlink -f "$ROOT/../../rust/oled" || true)"
+SPIS_ROOT="$(readlink -f "$ROOT/../../rust/spis" || true)"
+[[ -d "${OLED_ROOT:-}" ]] || { echo "ERROR: rust/oled not found" >&2; exit 1; }
+[[ -d "${SPIS_ROOT:-}" ]] || { echo "ERROR: rust/spis not found" >&2; exit 1; }
 
 DOCS_OUT="$OUT_DIR/cat_lolv_readmes.txt"
 SCRIPTS_OUT="$OUT_DIR/cat_lolv_modified_scripts.txt"
@@ -15,333 +23,86 @@ SPIS_OUT="$OUT_DIR/cat_rust_spis_oled_transport.txt"
 ALL_OUT="$OUT_DIR/cat_lolv_all.txt"
 
 mkdir -p "$OUT_DIR"
-
-: > "$DOCS_OUT"
-: > "$SCRIPTS_OUT"
-: > "$OLED_OUT"
-: > "$SPIS_OUT"
-: > "$ALL_OUT"
+: > "$DOCS_OUT"; : > "$SCRIPTS_OUT"; : > "$OLED_OUT"; : > "$SPIS_OUT"; : > "$ALL_OUT"
 
 write_header() {
-    local out_file="$1"
-    local title="$2"
-    local root="$3"
-
-    {
-        echo "================================================================"
-        echo "$title"
-        echo "ROOT: $root"
-        echo "GENERATED: $(date -Is)"
-        echo "================================================================"
-        echo
-    } >> "$out_file"
+    { echo "================================================================"
+      echo "$2"; echo "ROOT: $3"; echo "GENERATED: $(date -Is)"
+      echo "================================================================"; echo
+    } >> "$1"
 }
 
 append_hash_file() {
-    local out_file="$1"
-    local display_path="$2"
-    local real_path="$3"
-
-    {
-        echo
-        echo "################################################################"
-        echo "# FILE: $display_path"
-        echo "################################################################"
-        echo
-        cat "$real_path"
-        echo
-    } >> "$out_file"
+    { echo; echo "################################################################"
+      echo "# FILE: $2"
+      echo "################################################################"; echo
+      cat "$3"; echo; } >> "$1"
 }
 
 append_slash_file() {
-    local out_file="$1"
-    local display_path="$2"
-    local real_path="$3"
-
-    {
-        echo
-        echo "////////////////////////////////////////////////////////////////"
-        echo "// FILE: $display_path"
-        echo "////////////////////////////////////////////////////////////////"
-        echo
-        cat "$real_path"
-        echo
-    } >> "$out_file"
+    { echo; echo "////////////////////////////////////////////////////////////////"
+      echo "// FILE: $2"
+      echo "////////////////////////////////////////////////////////////////"; echo
+      cat "$3"; echo; } >> "$1"
 }
 
-append_tree_inventory() {
-    local out_file="$1"
-    local title="$2"
-    local tree_root="$3"
-    local excluded_subtree="${4:-}"
+# Shared prune list: build output, VCS, caches, archives, generated dumps.
+PRUNE=(
+  -path './.git' -prune -o
+  -path './info' -prune -o
+  -path './reports' -prune -o
+  -path './build' -prune -o
+  -path './images' -prune -o
+  -path './backup' -prune -o
+  -path './docs/archive' -prune -o
+  -path './tools/archive' -prune -o
+  -path '*/target' -prune -o
+  -path '*/node_modules' -prune -o
+  -path '*/__pycache__' -prune -o
+  -name '.build_step_backups.*' -prune -o
+)
 
-    {
-        echo "################################################################"
-        echo "# $title FILE INVENTORY (path and byte size)"
-        echo "################################################################"
-        echo
-        if [[ -n "$excluded_subtree" ]]; then
-            find "$tree_root" \
-              -path "$tree_root/.git" -prune -o \
-              -path '*/target' -prune -o \
-              -path '*/node_modules' -prune -o \
-              -path '*/__pycache__' -prune -o \
-              -path "$excluded_subtree" -prune -o \
-              -type f -printf '%P\t%s bytes\n' \
-            | sort
-        else
-            find "$tree_root" \
-              -path "$tree_root/.git" -prune -o \
-              -path '*/target' -prune -o \
-              -path '*/node_modules' -prune -o \
-              -path '*/__pycache__' -prune -o \
-              -type f -printf '%P\t%s bytes\n' \
-            | sort
-        fi
-        echo
-    } >> "$out_file"
+echo "== collecting lolv docs =="
+write_header "$DOCS_OUT" "LOLV DOCS" "$ROOT"
+find . "${PRUNE[@]}" -type f -name '*.md' -print0 \
+  | sort -z | while IFS= read -r -d '' f; do
+        append_hash_file "$DOCS_OUT" "$f" "$f"
+    done
+
+echo "== collecting lolv scripts and gateware =="
+write_header "$SCRIPTS_OUT" "LOLV SCRIPTS AND GATEWARE" "$ROOT"
+find . "${PRUNE[@]}" -type f \
+     \( -name '*.py' -o -name '*.sh' -o -name '*.v' -o -name '*.vhd' \) -print0 \
+  | sort -z | while IFS= read -r -d '' f; do
+        append_slash_file "$SCRIPTS_OUT" "$f" "$f"
+    done
+
+collect_rust() {
+    local out="$1" root="$2" label="$3" prefix="$4"
+    write_header "$out" "$label" "$root"
+    find "$root" \
+      -path "$root/.git" -prune -o \
+      -path '*/target' -prune -o \
+      -path '*/__pycache__' -prune -o \
+      -type f \( -name '*.rs' -o -name '*.toml' -o -name '*.json' \
+                 -o -name '*.sh' -o -name '*.md' \) -print0 \
+      | sort -z | while IFS= read -r -d '' f; do
+            append_slash_file "$out" "$prefix${f#$root/}" "$f"
+        done
 }
 
-write_header "$DOCS_OUT" "LOLV README / DOCS" "$ROOT"
-write_header "$SCRIPTS_OUT" "LOLV MODIFIED SCRIPTS / GATEWARE / CONFIGS" "$ROOT"
-write_header "$OLED_OUT" "RUST OLED COMPLETE TEXT SOURCE / ASSET INVENTORY" "$OLED_ROOT"
-write_header "$SPIS_OUT" "RUST SPI ASI + OLED TRANSPORT SOURCE / INVENTORY" "$SPIS_ROOT"
+echo "== collecting rust/oled =="
+collect_rust "$OLED_OUT" "$OLED_ROOT" "RUST OLED WORKSPACE" "../../rust/oled/"
 
-echo "== collecting lolv README/docs =="
+echo "== collecting rust/spis =="
+collect_rust "$SPIS_OUT" "$SPIS_ROOT" "RUST SPIS PROJECTS" "../../rust/spis/"
 
-find . \
-  -path './.git' -prune -o \
-  -path './build' -prune -o \
-  -path './buildroot' -prune -o \
-  -path './images' -prune -o \
-  -path './target' -prune -o \
-  -path './__pycache__' -prune -o \
-  -path './reports' -prune -o \
-  -iname '*bsi*' -prune -o \
-  -type f \( -name '*.md' -o -name '*.txt' \) -print0 \
-| sort -z \
-| while IFS= read -r -d '' file; do
-    append_hash_file "$DOCS_OUT" "$file" "$file"
+echo "== combining =="
+write_header "$ALL_OUT" "LOLV COMPLETE AGGREGATE" "$ROOT"
+cat "$DOCS_OUT" "$SCRIPTS_OUT" "$OLED_OUT" "$SPIS_OUT" >> "$ALL_OUT"
+
+echo
+echo "wrote:"
+for f in "$DOCS_OUT" "$SCRIPTS_OUT" "$OLED_OUT" "$SPIS_OUT" "$ALL_OUT"; do
+    printf '  %8s  %s\n' "$(du -h "$f" | cut -f1)" "${f#$ROOT/}"
 done
-
-echo "wrote $DOCS_OUT"
-
-echo
-echo "== collecting lolv scripts/gateware/configs =="
-
-find . \
-  -path './.git' -prune -o \
-  -path './build' -prune -o \
-  -path './buildroot' -prune -o \
-  -path './images' -prune -o \
-  -path './target' -prune -o \
-  -path './__pycache__' -prune -o \
-  -path './reports' -prune -o \
-  -iname '*bsi*' -prune -o \
-  -type f \( \
-      -name '*.py' -o \
-      -name '*.sh' -o \
-      -name '*.c' -o \
-      -name '*.h' -o \
-      -name '*.rs' -o \
-      -name '*.vhd' -o \
-      -name '*.vhdl' -o \
-      -name '*.v' -o \
-      -name '*.sv' -o \
-      -name '*.dts' -o \
-      -name '*.dtsi' -o \
-      -name '*.json' -o \
-      -name '*.toml' -o \
-      -name '*.yaml' -o \
-      -name '*.yml' -o \
-      -name '*.config' -o \
-      -name '*.cfg' -o \
-      -name '*.lpf' -o \
-      -name '*.xdc' -o \
-      -name '*.sdc' -o \
-      -name '*defconfig' -o \
-      -name 'Config.in' -o \
-      -name '*.mk' -o \
-      -name 'Makefile' -o \
-      -name '.gitignore' \
-    \) -print0 \
-| sort -z \
-| while IFS= read -r -d '' file; do
-    append_slash_file "$SCRIPTS_OUT" "$file" "$file"
-done
-
-echo "wrote $SCRIPTS_OUT"
-
-echo
-echo "== collecting complete ../../rust/oled text source and asset inventory =="
-
-if [[ ! -d "$OLED_ROOT" ]]; then
-    echo "ERROR: missing OLED workspace: $OLED_ROOT" >&2
-    exit 1
-fi
-
-append_tree_inventory "$OLED_OUT" "RUST OLED WORKSPACE" "$OLED_ROOT"
-
-find "$OLED_ROOT" \
-  -path "$OLED_ROOT/.git" -prune -o \
-  -path '*/target' -prune -o \
-  -path '*/node_modules' -prune -o \
-  -path '*/__pycache__' -prune -o \
-  -type f \( \
-      -name '*.rs' -o \
-      -name '*.toml' -o \
-      -name '*.lock' -o \
-      -name '*.json' -o \
-      -name '*.md' -o \
-      -name '*.txt' -o \
-      -name '*.html' -o \
-      -name '*.htm' -o \
-      -name '*.css' -o \
-      -name '*.js' -o \
-      -name '*.mjs' -o \
-      -name '*.ts' -o \
-      -name '*.svg' -o \
-      -name '*.xml' -o \
-      -name '*.yaml' -o \
-      -name '*.yml' -o \
-      -name '*.sh' -o \
-      -name '*.py' -o \
-      -name '*.c' -o \
-      -name '*.h' -o \
-      -name '*.config' -o \
-      -name '*.service' -o \
-      -name 'config' -o \
-      -name 'rust-toolchain' -o \
-      -name 'Makefile' -o \
-      -name 'LICENSE*' -o \
-      -name '.gitignore' -o \
-      -name '.gitmodules' \
-    \) -print0 \
-| sort -z \
-| while IFS= read -r -d '' file; do
-    rel="${file#"$OLED_ROOT"/}"
-    append_slash_file "$OLED_OUT" "../../rust/oled/$rel" "$file"
-done
-
-echo "wrote $OLED_OUT"
-
-echo
-echo "== collecting relevant ../../rust/spis source and inventory =="
-
-if [[ ! -d "$SPIS_ROOT" ]]; then
-    echo "ERROR: missing SPI workspace: $SPIS_ROOT" >&2
-    exit 1
-fi
-
-# BSI is deliberately retired from this report. The root files, ASI, and the
-# future oled_web_pipe are captured automatically.
-append_tree_inventory \
-    "$SPIS_OUT" \
-    "RUST SPI RELEVANT WORKSPACE" \
-    "$SPIS_ROOT" \
-    "$SPIS_ROOT/basic_spi_io"
-
-find "$SPIS_ROOT" \
-  -path "$SPIS_ROOT/.git" -prune -o \
-  -path "$SPIS_ROOT/basic_spi_io" -prune -o \
-  -path '*/target' -prune -o \
-  -path '*/node_modules' -prune -o \
-  -path '*/__pycache__' -prune -o \
-  -type f \( \
-      -name '*.rs' -o \
-      -name '*.toml' -o \
-      -name '*.lock' -o \
-      -name '*.json' -o \
-      -name '*.md' -o \
-      -name '*.txt' -o \
-      -name '*.html' -o \
-      -name '*.css' -o \
-      -name '*.js' -o \
-      -name '*.svg' -o \
-      -name '*.yaml' -o \
-      -name '*.yml' -o \
-      -name '*.sh' -o \
-      -name '*.py' -o \
-      -name '*.c' -o \
-      -name '*.h' -o \
-      -name '*.config' -o \
-      -name 'config' -o \
-      -name 'rust-toolchain' -o \
-      -name 'Makefile' -o \
-      -name 'LICENSE*' -o \
-      -name '.gitignore' -o \
-      -name '.gitmodules' \
-    \) -print0 \
-| sort -z \
-| while IFS= read -r -d '' file; do
-    rel="${file#"$SPIS_ROOT"/}"
-    append_slash_file "$SPIS_OUT" "../../rust/spis/$rel" "$file"
-done
-
-echo "wrote $SPIS_OUT"
-
-{
-    echo "================================================================"
-    echo "LOLV COMPLETE AGGREGATE"
-    echo "ROOT: $ROOT"
-    echo "GENERATED: $(date -Is)"
-    echo "================================================================"
-    echo
-    echo "Included sections:"
-    echo "  1. LOLV README/docs"
-    echo "  2. LOLV scripts/gateware/configs"
-    echo "  3. ../../rust/oled complete text source and asset inventory"
-    echo "  4. ../../rust/spis root + ASI + OLED transport (BSI excluded)"
-    echo
-    echo "Generated component files:"
-    echo "  $DOCS_OUT"
-    echo "  $SCRIPTS_OUT"
-    echo "  $OLED_OUT"
-    echo "  $SPIS_OUT"
-    echo
-    echo
-    echo "################################################################"
-    echo "# SECTION 1: LOLV README / DOCS"
-    echo "################################################################"
-    echo
-    cat "$DOCS_OUT"
-    echo
-    echo
-    echo "################################################################"
-    echo "# SECTION 2: LOLV SCRIPTS / GATEWARE / CONFIGS"
-    echo "################################################################"
-    echo
-    cat "$SCRIPTS_OUT"
-    echo
-    echo
-    echo "################################################################"
-    echo "# SECTION 3: RUST OLED COMPLETE SOURCE / ASSET INVENTORY"
-    echo "################################################################"
-    echo
-    cat "$OLED_OUT"
-    echo
-    echo
-    echo "################################################################"
-    echo "# SECTION 4: RUST SPI ASI + OLED TRANSPORT SOURCE / INVENTORY"
-    echo "################################################################"
-    echo
-    cat "$SPIS_OUT"
-    echo
-} >> "$ALL_OUT"
-
-echo "wrote $ALL_OUT"
-
-echo
-echo "== aggregate sizes =="
-ls -lh "$DOCS_OUT" "$SCRIPTS_OUT" "$OLED_OUT" "$SPIS_OUT" "$ALL_OUT"
-
-echo
-echo "== OLED text files captured =="
-grep -c '^// FILE: ../../rust/oled/' "$OLED_OUT" || true
-
-echo
-echo "== relevant SPI text files captured =="
-grep -c '^// FILE: ../../rust/spis/' "$SPIS_OUT" || true
-
-echo
-echo "DONE."
