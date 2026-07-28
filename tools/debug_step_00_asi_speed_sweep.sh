@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
-# build_step_11_asi_speed_sweep.sh
+# debug_step_00_asi_speed_sweep.sh
 #
 # Find the maximum reliable ASI SPI clock, then report a safe production value.
+#
+# This is a DIAGNOSTIC, not a build step: nothing downstream depends on it and
+# it is interactive (it pauses for you to restart the receiver between runs).
+# Formerly build_step_11_asi_speed_sweep.sh.
 #
 # Method:
 #   phase 1  ramp   -- double the clock from START_HZ until a run FAILS
@@ -27,6 +31,19 @@ PAYLOAD_BYTES="${PAYLOAD_BYTES:-1048576}"
 SAFETY_PCT="${SAFETY_PCT:-16}"         # report a value this % below max
 FIFO_WORD=4
 
+# Which receiver is under test.  The chardev path sleeps on the spi_ext
+# interrupt and batches reads; the CSR path polls /dev/mem and is the
+# reference implementation.  Sweep whichever one you actually ship -- their
+# ceilings differ, because the bottleneck is not the bit rate.
+RECEIVER="${RECEIVER:-chardev}"
+case "$RECEIVER" in
+    chardev) RECEIVER_FLAGS="--chardev" ;;
+    csr)     RECEIVER_FLAGS="" ;;
+    *) echo "ERROR: RECEIVER must be 'chardev' or 'csr' (got '$RECEIVER')" >&2; exit 2 ;;
+esac
+OC_ASI_BIN="${OC_ASI_BIN:-/root/8gb/spis/bin/asi}"
+OC_INCOMING_DIR="${OC_INCOMING_DIR:-/root/8gb/oled/incoming}"
+
 TESTFILE="${TESTFILE:-/tmp/asi_speed_test_1mb.bin}"
 RESULTS="/tmp/asi_speed_sweep_results.txt"
 
@@ -40,6 +57,7 @@ if [[ ! -s "$TESTFILE" ]] || [[ "$(stat -c%s "$TESTFILE")" != "$PAYLOAD_BYTES" ]
     echo "== generating $PAYLOAD_BYTES byte test payload =="
     head -c "$PAYLOAD_BYTES" /dev/urandom > "$TESTFILE"
 fi
+echo "receiver under test: $RECEIVER"
 echo "payload: $TESTFILE ($(stat -c%s "$TESTFILE") bytes)"
 sha256sum "$TESTFILE"
 : > "$RESULTS"
@@ -57,7 +75,7 @@ run_at() {
   NEXT TEST: ${hz} Hz   (chunk=${CHUNK_BYTES} timeout=${TIMEOUT_SECONDS}s)
 
   On the OrangeCrab, start a FRESH receiver now:
-    /root/8gb/spis/bin/asi --timeout-seconds ${TIMEOUT_SECONDS} receive /root/8gb/oled/incoming
+    ${OC_ASI_BIN} ${RECEIVER_FLAGS} --timeout-seconds ${TIMEOUT_SECONDS} receive ${OC_INCOMING_DIR}
 ──────────────────────────────────────────────────────────────
 EOT
     read -r -p "  press ENTER when the receiver is listening (or 's' to skip): " reply

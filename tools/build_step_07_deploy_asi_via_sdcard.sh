@@ -54,8 +54,8 @@ echo "source sha256: $SOURCE_SHA"
 
 echo
 echo "== verifying OrangeCrab SD card =="
-[[ -b "$DEV" ]] || die "$DEV is not a block device; run tools/find-sdcard.sh"
-[[ -b "$PART" ]] || die "$PART does not exist; run tools/find-sdcard.sh"
+[[ -b "$DEV" ]] || die "$DEV is not a block device; run tools/misc_step_find_orangecrab_sd_card.sh"
+[[ -b "$PART" ]] || die "$PART does not exist; run tools/misc_step_find_orangecrab_sd_card.sh"
 ACTUAL_SIZE="$(sudo blockdev --getsize64 "$DEV")"
 echo "$DEV size: $ACTUAL_SIZE bytes"
 [[ "$ACTUAL_SIZE" == "$EXPECTED_SIZE" ]] \

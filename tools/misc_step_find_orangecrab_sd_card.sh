@@ -1,7 +1,14 @@
 #!/bin/sh
+# misc_step_find_orangecrab_sd_card.sh
+#
 # Read-only. Run on the Jetson with the OrangeCrab's SD card inserted via a
 # reader. Helps positively identify which device node is the card before
 # any partition/filesystem work touches anything.
+#
+# Not a numbered step: it is a helper called out by name from
+# build_step_04_deploy_kernel_to_sd.sh and
+# build_step_07_deploy_asi_via_sdcard.sh when a device check fails.
+# Formerly find-sdcard.sh.
 
 echo "== lsblk (all block devices, sizes, mountpoints) =="
 lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,MOUNTPOINT,MODEL

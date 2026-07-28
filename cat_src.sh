@@ -9,12 +9,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 cd "$ROOT"
 
 OUT_DIR="$ROOT/info"
-# readlink -f exits non-zero on a missing path, which under `set -e` made
-# the old script die silently. Resolve, then report clearly if absent.
-OLED_ROOT="$(readlink -f "$ROOT/../../rust/oled" || true)"
-SPIS_ROOT="$(readlink -f "$ROOT/../../rust/spis" || true)"
-[[ -d "${OLED_ROOT:-}" ]] || { echo "ERROR: rust/oled not found" >&2; exit 1; }
-[[ -d "${SPIS_ROOT:-}" ]] || { echo "ERROR: rust/spis not found" >&2; exit 1; }
+OLED_ROOT="$(readlink -f "$ROOT/../../rust/oled")"
+SPIS_ROOT="$(readlink -f "$ROOT/../../rust/spis")"
 
 DOCS_OUT="$OUT_DIR/cat_lolv_readmes.txt"
 SCRIPTS_OUT="$OUT_DIR/cat_lolv_modified_scripts.txt"
@@ -72,7 +68,9 @@ find . "${PRUNE[@]}" -type f -name '*.md' -print0 \
 echo "== collecting lolv scripts and gateware =="
 write_header "$SCRIPTS_OUT" "LOLV SCRIPTS AND GATEWARE" "$ROOT"
 find . "${PRUNE[@]}" -type f \
-     \( -name '*.py' -o -name '*.sh' -o -name '*.v' -o -name '*.vhd' \) -print0 \
+     \( -name '*.py' -o -name '*.sh' -o -name '*.v' -o -name '*.vhd' \
+        -o -name '*.c' -o -name '*.h' -o -name '*.dtsnode' \
+        -o -name 'Makefile' -o -name 'Kconfig' \) -print0 \
   | sort -z | while IFS= read -r -d '' f; do
         append_slash_file "$SCRIPTS_OUT" "$f" "$f"
     done

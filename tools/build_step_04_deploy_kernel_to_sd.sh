@@ -34,7 +34,7 @@ echo "== safety check: confirming $DEV is the expected card =="
 SIZE_BYTES=$(sudo blockdev --getsize64 "$DEV" 2>/dev/null)
 if [ "$SIZE_BYTES" != "15524167680" ]; then
   echo "ABORTING: $DEV is not the expected 14.46GiB card (got size $SIZE_BYTES)."
-  echo "Is the card actually inserted? Re-run find-sdcard.sh to check."
+  echo "Is the card actually inserted? Re-run misc_step_find_orangecrab_sd_card.sh to check."
   echo; echo "done"; exit 1
 fi
 echo "  ok, size matches."

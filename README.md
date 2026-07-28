@@ -1,3 +1,4 @@
+
 # LOLV — Linux-on-LiteX-VexRiscv on OrangeCrab, driven from a Jetson
 
 A Jetson Orin Nano drives an OrangeCrab 85F over SPI. The OrangeCrab runs
@@ -110,13 +111,27 @@ per chunk:
 DONE(count)              -> DONE_ACK
 ```
 
-**OWP2** (`rust/spis/oled_web_pipe`) — small OLED draw commands.
+**OWP2** (`rust/spis/oled_web_pipe`) — small OLED draw commands. Jetson side
+only; the receiver lives in `lolv_actors` on the chardev.
 
 ```
 BEGIN(seq,len)           -> READY(seq)
 [frame...]                                      one burst
 END(seq)                 -> OK(seq,crc16) | BAD(seq)
+POLL                     -> FLUSHED(watermark24)    v2.1, optional
 ```
+
+`OK` means *committed to the OrangeCrab framebuffer*. It says nothing about
+the panel: the I2C actor flushes on its own tick, up to a frame later.
+`FLUSHED` is the second stage and means the I2C write landed.
+
+It is a **watermark, not a per-command ack**, because the I2C actor
+coalesces — 500 brush points become one page write, so there is no
+per-command flush to report. One reply retires every pending command at
+once. The counter is 24 bits and wraps; compare with `watermark_reached`
+(RFC 1982 style), never with `>=`. A receiver that predates this never
+answers `POLL`, the short poll timeout expires, and the poller disables
+itself for the session.
 
 Two rules make both protocols sound, and both were learned by breaking them:
 
@@ -139,10 +154,13 @@ unbounded duplicates and re-answer a repeated `END` from a remembered result.
 rust/spis/async_spi_interface   ASI sender + both receivers (CSR and chardev)
 rust/spis/oled_web_pipe         OWP2 transport (polling /dev/mem)
 rust/spis/lolv_spi_async        AsyncFd chardev transport for tokio
-rust/oled/tiny_128x64           framebuffer, draw commands, SH1106/SSD1306
+rust/spis/lolv_oled_control     Jetson controller: pipe, framebuffers, ids,
+                                fonts, bitmap tiling, flush watermark
+rust/oled/tiny_128x64           framebuffer (runtime-dimensioned), draw
+                                commands, SH1106/SSD1306
 rust/oled/lolv_actors           SPI actor + I2C actor + lolv_oled_backend
-rust/oled/axum_serve            web frontend (Jetson)
-rust/oled/spi_oled_backend      legacy polling backend (kept working)
+rust/oled/axum_serve            web frontend (Jetson); a client of
+                                lolv_oled_control, not the SPI owner
 rust/slog                       throttled logging, per-target atomic width
 ```
 
@@ -174,6 +192,23 @@ SH1106 needs column offset 2 (132-column RAM, 128 visible) and charge pump
 `0xAD/0x8B`; SSD1306 uses offset 0 and `0x8D/0x14`. Wrong controller = shifted
 image with wrapped garbage columns.
 
+**The charge pump is the thing that breaks.** Lighting most of the panel is a
+current load step; on a marginal supply the controller brown-out resets,
+loses its configuration, and NAKs every write until re-initialised. Plain
+write retries can never heal that — only a re-init can. Three rules fell out
+of this, and they are all load-shaping:
+
+- Never rewrite the whole framebuffer to invert. Use the controller's own
+  `0xA7`/`0xA6` (`DisplayInvert`): one command byte, no page traffic.
+- Repaint with the display OFF. The init sequence ends in `0xAF`, so a naive
+  recovery drives a fully-lit panel through an 88-transaction burst — the
+  same condition that broke it.
+- Apply contrast/invert/power AFTER the pixels, and back off exponentially
+  between recovery attempts. Retrying a full repaint every tick is a solid
+  wall of I2C traffic that never lets the supply recover.
+
+None of that is a *fix*, it is load-shaping. The fix is electrical.
+
 ---
 
 ## Status
@@ -194,6 +229,98 @@ image with wrapped garbage columns.
 - Interrupt-driven OLED backend with dirty-page flush and coalescing
 - Web frontend with instant optimistic ghost drawing
 - `slog` throttled logging working on rv32 (per-target atomic width)
+- Shapes on the wire: `Circle`, `Ellipse`, `Bitmap` (1-bit, MSB-first,
+  byte-padded rows) — `Bitmap` is the escape hatch that makes text work
+- **Controller split**: `lolv_oled_control` owns the pipe, the optimistic and
+  confirmed framebuffers, ids and the CRC resync; `axum_serve` is a client
+- **Runtime-dimensioned framebuffer** — `with_size(w, h)`, page-major layout
+  unchanged, `--width`/`--height` on both ends. `DrawCommand` carries no
+  dimensions; `ReplaceFramebuffer` is validated against the receiver's size
+- **Text** rasterised on the Jetson (fontdue) and shipped as `Bitmap`.
+  `POST /text` returns the bits so the browser previews the *exact* pixels —
+  canvas `fillText` and fontdue disagree at 8–16 px
+- **Bitmap tiling** against the 2048-byte wire MTU, sized by actually
+  encoding each candidate band rather than modelling bincode's layout
+- **Flush watermark** (`POLL`/`FLUSHED`): the browser's 100% now means the
+  I2C write landed, not just that the command was committed
+- Frontend shape + text tools, live drag preview, shift quantisation,
+  42/69/100 progress states
+- **Panel backpressure removed** — the I2C actor is fed by a `watch` of panel
+  state, not an mpsc of commands, so the SPI task can never block on a sick
+  panel (it used to, and it killed the whole link)
+- `spi_oled_backend` retired; `lolv_oled_backend` is the only OLED backend
+
+### Open bugs
+
+Three things are known broken. Read these before starting anything new.
+
+#### 1. Panel still flickers
+
+Dirty-page tracking cut a full repaint to the pages that changed, but a
+*page* is still 128 bytes and ~11 I2C transactions, and the bus is bitbanged
+at ~90 kHz. A full repaint is ~100 ms, which is long enough to see the panel
+update in bands. Load-shaping (see **OLED reality**) made the brown-out
+storms rarer; it did not make the bus faster.
+
+Next steps, cheapest first:
+
+- **Dirty column ranges within a page.** `flush_one_page` writes all 128
+  columns of any page it touches. A brush stroke usually touches a handful.
+  Track min/max dirty column per page and set the column address to match —
+  the addressing commands already exist, only the range is hardcoded. This
+  is pure software and should be the biggest single win for interactive
+  drawing.
+- **A hardware I2C master in the gateware.** LiteX ships one. Bitbang at
+  90 kHz against 400 kHz fast mode is a >4x cut in flush time and it stops
+  burning the CPU on bit timing. This is also the prerequisite for the
+  multi-OLED work below.
+- **Electrical.** 100 µF bulk plus 100 nF right at the module's VCC/GND, and
+  scope the 3.3 V rail during a full repaint. If it sags, nothing in software
+  will fix this properly.
+
+#### 2. `DisplayInvert` fails at the web ↔ backend boundary
+
+The browser sends `{"cmd":"display_invert"}` but `BrowserCommand` carries
+`#[serde(tag = "cmd", rename_all = "lowercase")]`, which lowercases the whole
+identifier with no separator — so serde is looking for `displayinvert`. The
+command fails to deserialise and the websocket replies with
+`{"kind":"error","message":"bad command: ..."}`.
+
+Fixed by naming the variant explicitly rather than relying on the rename
+rule. **Worth a rule:** any multi-word `BrowserCommand` variant needs an
+explicit `#[serde(rename = "...")]`, because `lowercase` silently produces
+a name nobody would guess. There is no compile-time check tying the JS
+strings to the enum; a round-trip test over the JSON the frontend actually
+emits would catch the next one.
+
+#### 3. Drawing near the bottom lands at the top
+
+Objects drawn low on the canvas appear at the top of the panel. Vertical
+origin or height is wrong somewhere, and it is **not yet diagnosed** — do
+not assume the cause. There are three places it could be, and they are
+cleanly separable:
+
+```sh
+# 1. Draw a mark at a known low row, then dump the FRAMEBUFFER as ASCII art.
+curl -X POST localhost:8080/text -H 'content-type: application/json' \
+  -d '{"x":2,"y":56,"text":"LOW","size_px":8}'
+curl -s localhost:8080/screenshot | tail -n +3 | tr -d ' ' | tr '01' '.#'
+```
+
+- Mark appears **low in the PBM** and low on the panel → not a bug, look
+  again at what was actually clicked.
+- Mark appears **low in the PBM** but high on the panel → the panel side:
+  page addressing in `flush_one_page`, display offset (`0xD3`), start line
+  (`0x40`), or multiplex ratio (`0xA8`) in the init sequence.
+- Mark appears **high in the PBM** → the Jetson side, and since `set_pixel`
+  clips rather than wraps, suspect the browser's `xy()` — it divides by
+  `getBoundingClientRect().height`, which is wrong if the `#stack`
+  `aspect-ratio` did not apply. Check `/stats` agrees with the backend's
+  `--height` too: a mismatch there is silently clipped, not reported.
+
+Note that `set_pixel` cannot wrap — it bounds-checks against `width`/
+`height` and returns. So a true wrap has to come from the panel's own
+addressing, not from the framebuffer.
 
 ### Todo
 
@@ -201,22 +328,30 @@ image with wrapped garbage columns.
   `DONE`. Currently ~1/3 of wall time is SHA-256 + SD write after the last
   chunk. `sha2::Digest::update()` per chunk, payload streamed behind the
   header.
-- **Re-run the speed sweep** (`build_step_11`) now that the handshake is
-  cheap. Note the cable has a real ~1% error floor at 4 MHz; 8 MHz fails CRC.
+- **Re-run the speed sweep** (`debug_step_00_asi_speed_sweep.sh`) now that
+  the handshake is cheap, and sweep the chardev receiver specifically
+  (`RECEIVER=chardev`, the default) — the two receivers have different
+  ceilings. The cable has a real ~1% error floor at 4 MHz; 8 MHz fails CRC.
   Shorter leads and a ground return alongside the clock are the physical fix.
-- **Drawing library** — a Jetson-side crate that owns shapes (circle, ellipse,
-  quantised angles, squares), text, and bitmaps, emitting `DrawCommand`s.
-  `axum_serve` becomes one client of it, not the SPI owner. Rasterise fonts on
-  the Jetson and ship a `Bitmap` command; do not send TTFs over a 2048-byte
-  wire to a 64 MHz core.
-- **Frontend drag preview** for every shape.
-- **Dithered shades** as a parameter on primitives.
+- **Dithered shades** as a parameter on primitives. 1 bpp means spatial
+  dithering is the only route to grey.
+- **Multi-line and aligned text.** `rasterize` deliberately rejects newlines
+  rather than guessing line spacing; layout is the caller's decision.
 - **`lolv_spi` service** — systemd unit with a `flock` so ASI and the OLED
-  backend cannot both hold the mailbox. Userspace; a kernel module buys
-  nothing here.
+  backend cannot both hold the mailbox. Right now the board scripts guard
+  this with a `pidof` check, which is advisory only. Userspace; a kernel
+  module buys nothing here.
 - **I2C kernel driver** for multiple OLEDs.
 - **`aii`** — ASI-over-I2C for touchscreen input. Design for small messages;
   ~90 kHz I2C is ~45x slower than the SPI link.
+- **The mirror system** — I2C for Jetson↔OrangeCrab, an SPI touchscreen on
+  the OrangeCrab, drawing on the touchscreen and displaying in the browser.
+  This is the same system with the transport swapped and the source/sink
+  traded, *provided* the controller stays a hub: N command sources, N
+  subscribers, one framebuffer, transport behind a trait. The `POLL`/
+  `FLUSHED` exchange is already the upstream path this needs — touchscreen
+  events reach a polling master the same way a watermark does, so it is a
+  new message type rather than a new transport.
 
 ---
 
@@ -260,12 +395,17 @@ Bring-up order, each step depending on the last:
 ./tools/build_step_05_optional_generate_dtb.sh    # only for a hand-edited DTS
 ./tools/build_step_06_generate_asi.sh             # BOTH asi binaries
 ./tools/build_step_07_deploy_asi_via_sdcard.sh    # bootstrap asi via SD
-./tools/build_step_08_deploy_oled_backend_via_asi.sh
-./tools/build_step_09_generate_lolv_backend.sh
-./tools/build_step_10_deploy_lolv_backend_via_asi.sh
-./tools/build_step_11_asi_speed_sweep.sh          # find the max clock
+./tools/build_step_08_build_oled_backends.sh      # BOTH halves: Jetson + rv32
+./tools/build_step_09_deploy_oled_backend_via_asi_chardev.sh
 ./tools/connect_over_uart.sh                      # serial console
+./tools/run_00_lolv_oled_axum.sh                  # Jetson web frontend
+./tools/debug_step_00_asi_speed_sweep.sh          # find the max clock
+./tools/misc_step_find_orangecrab_sd_card.sh      # identify the card
 ```
+
+`build_step_*` are ordered and each depends on the last. `debug_step_*` and
+`misc_step_*` are not part of the sequence: nothing depends on them, and the
+sweep is interactive.
 
 ### What requires what
 
@@ -274,23 +414,40 @@ Bring-up order, each step depending on the last:
 | `soc_linux.py` gateware | 01 | 02 (bitstream), 04 (new dtb) |
 | `linux.config` or the driver | 03 | 04 |
 | ASI Rust | 06 | 07 or send via a running receiver |
-| OLED Rust | 09 | 10 |
+| OLED Rust (either end) | 08 | 09 |
 | Jetson-only Rust (`axum_serve`) | `build_host.sh` | nothing |
+
+`lolv_oled_control` lives under `rust/spis`, so `cargo test --workspace` in
+`rust/oled` does **not** reach it. `build_step_08` and `tools/build_host.sh`
+test it explicitly; a bare workspace test will silently skip text,
+tiling and watermark coverage.
 
 Re-synthesising does **not** require a kernel rebuild. The DTB does change,
 so redeploy it. The `spi_ext` IRQ number lives in the DTB, not the Image.
 
 **Sender and receiver share a protocol version.** `build_step_06` builds both
-for exactly this reason — a stale host sender against a fresh rv32 receiver
-mis-frames silently. Keep a copy of the old host binary before a protocol
-change, or bootstrap over SD (`build_step_07`).
+ASI binaries for exactly this reason, and `build_step_08` does the same for
+the OLED pair — a stale host against a fresh rv32 receiver mis-frames
+silently. Keep a copy of the old host binary before a protocol change, or
+bootstrap over SD (`build_step_07`).
+
+`DrawCommand` is bincode with **positional variant indices**. New commands go
+at the END of the enum; inserting one anywhere else silently renumbers every
+command after it, and the failure looks like corruption rather than a
+version skew.
 
 ### On the OrangeCrab
 
 ```sh
-/root/8gb/tools/run_asi_rx_8gb_oled_incoming.sh    # ASI receiver
-/root/8gb/tools/run_lolv_oled_backend.sh           # OLED backend (root)
+/root/8gb/tools/run_00_asi_rx_oled_chardev.sh      # ASI receiver (chardev)
+/root/8gb/tools/run_01_asi_rx_oled_csr.sh          # fallback, /dev/mem only
+/root/8gb/tools/run_02_lolv_oled_backend.sh        # OLED backend (root)
 ```
+
+The receiver and the backend both drain the same SPI mailbox, so they cannot
+run together — whichever reads a word first consumes it. The receive scripts
+refuse to start while the backend is up (`STOP_BACKEND=1` to stop it first).
+This is advisory; the real fix is the `flock` service in the todo list.
 
 `/dev/lolv_spi` is root-only. Per-core placement:
 
@@ -308,3 +465,11 @@ echo 1 > /proc/irq/13/smp_affinity
   reference implementation and it works.
 - `i2cdetect -y 0` with the backend **stopped**; a running backend holds the
   bus and gives a false empty scan. Busybox has no `pkill`; use `killall`.
+- A panel that has stopped answering at all is a different fault from one
+  browning out under load. `i2cdetect` distinguishes them and the log does
+  not: both look like a wall of NAKs.
+- If the Jetson reports a dead peer, check whether the OrangeCrab is merely
+  *busy* before blaming the link. A stale control word left on MISO —
+  `last MISO=0xb7......` in a HELLO timeout, for instance — means the SPI
+  task stopped being serviced, not that the wire broke.
+
