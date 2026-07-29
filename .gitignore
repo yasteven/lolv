@@ -49,3 +49,6 @@ images/rv32.dtb
 
 # Downloaded/bootstrap copies. Canonical versions belong in rust/spis.
 # END ASI generated work products
+
+# local tool scratch (localize_tools_tmp.py)
+tmp/

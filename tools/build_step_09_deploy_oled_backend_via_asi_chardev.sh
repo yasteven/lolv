@@ -49,12 +49,14 @@ done
 (( CHUNK_BYTES % 4 == 0 ))     || { echo "ERROR: CHUNK_BYTES must be a multiple of 4 (FIFO word)" >&2; exit 2; }
 (( CHUNK_BYTES <= 16384 ))     || { echo "ERROR: CHUNK_BYTES exceeds the 4096-word RX FIFO (16384 bytes)" >&2; exit 2; }
 
-if [[ ! -d "${TMPDIR:-/tmp}" ]]; then
-    echo "note: TMPDIR='${TMPDIR:-}' does not exist; falling back to /tmp" >&2
-    export TMPDIR=/tmp
-fi
-
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+
+# Localise temps under lolv/tmp (not /tmp). Ephemeral files are cleaned;
+# results files under this dir are kept.
+mkdir -p "$ROOT/tmp"
+if [[ -z "${TMPDIR:-}" || ! -d "${TMPDIR}" ]]; then
+    export TMPDIR="$ROOT/tmp"
+fi
 OLED="$(readlink -f "$ROOT/../../rust/oled")"
 ASI="$(readlink -f "$ROOT/../../rust/spis/async_spi_interface")"
 BIN="$OLED/target/rv32ima-buildroot/release/lolv_oled_backend"

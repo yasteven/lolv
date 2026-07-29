@@ -20,15 +20,16 @@
 # OLED backend now.
 set -euo pipefail
 
-# rustdoc needs a TMPDIR that actually exists.  A stale value pointing at an
-# unmounted path fails the doctest harness AFTER every useful test has
-# already passed, which reads like a code failure and is not one.
-if [[ ! -d "${TMPDIR:-/tmp}" ]]; then
-    echo "note: TMPDIR='${TMPDIR:-}' does not exist; falling back to /tmp" >&2
-    export TMPDIR=/tmp
-fi
-
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+
+# rustdoc needs a TMPDIR that actually exists.  Prefer lolv/tmp so
+# cargo/rustdoc scratch stays inside the repo tree.
+# Localise temps under lolv/tmp (not /tmp). Ephemeral files are cleaned;
+# results files under this dir are kept.
+mkdir -p "$ROOT/tmp"
+if [[ -z "${TMPDIR:-}" || ! -d "${TMPDIR}" ]]; then
+    export TMPDIR="$ROOT/tmp"
+fi
 OLED="$(readlink -f "$ROOT/../../rust/oled")"
 CONTROL="$(readlink -f "$ROOT/../../rust/spis/lolv_oled_control")"
 HOST_BIN="$OLED/target/release/axum_serve"

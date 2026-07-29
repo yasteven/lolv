@@ -15,9 +15,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 ASI="$(readlink -f "$ROOT/../../rust/spis/async_spi_interface")"
 [[ -d "$ASI" ]] || { echo "ERROR: missing $ASI" >&2; exit 1; }
 
-if [[ ! -d "${TMPDIR:-/tmp}" ]]; then
-    echo "note: TMPDIR='${TMPDIR:-}' does not exist; falling back to /tmp" >&2
-    export TMPDIR=/tmp
+# Localise temps under lolv/tmp (not /tmp). Ephemeral files are cleaned;
+# results files under this dir are kept.
+mkdir -p "$ROOT/tmp"
+if [[ -z "${TMPDIR:-}" || ! -d "${TMPDIR}" ]]; then
+    export TMPDIR="$ROOT/tmp"
 fi
 
 cd "$ASI"

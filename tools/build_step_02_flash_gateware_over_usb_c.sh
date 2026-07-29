@@ -10,6 +10,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 cd "$ROOT"
 
+# Localise temps under lolv/tmp (not /tmp). Ephemeral files are cleaned;
+# results files under this dir are kept.
+mkdir -p "$ROOT/tmp"
+if [[ -z "${TMPDIR:-}" || ! -d "${TMPDIR}" ]]; then
+    export TMPDIR="$ROOT/tmp"
+fi
+
 GATEWARE="$ROOT/build/orange_crab/gateware"
 BIT="$GATEWARE/orange_crab.bit"
 DFU="$GATEWARE/orange_crab.bit.dfu"
@@ -76,7 +83,7 @@ grep -Eq 'alt=0([^0-9]|$).*Bitstream|alt=0([^0-9]|$)' <<<"$DFU_LIST" \
 
 echo
 echo "== flashing gateware to OrangeCrab alt 0 (bitstream only) =="
-FLASH_LOG="$(mktemp /tmp/build_step_02_flash.XXXXXX.log)"
+FLASH_LOG="$(mktemp "$ROOT/tmp/build_step_02_flash.XXXXXX.log")"
 set +e
 sudo dfu-util -d 1209:5af0 -a 0 -D "$DFU" 2>&1 | tee "$FLASH_LOG"
 FLASH_RC=${PIPESTATUS[0]}

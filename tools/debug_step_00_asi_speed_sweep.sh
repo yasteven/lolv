@@ -19,6 +19,14 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+
+# Localise temps under lolv/tmp (not /tmp). Ephemeral files are cleaned;
+# results files under this dir are kept.
+mkdir -p "$ROOT/tmp"
+if [[ -z "${TMPDIR:-}" || ! -d "${TMPDIR}" ]]; then
+    export TMPDIR="$ROOT/tmp"
+fi
+
 ASI="$(readlink -f "$ROOT/../../rust/spis/async_spi_interface")"
 SENDER="$ASI/target/release/asi"
 
@@ -44,8 +52,9 @@ esac
 OC_ASI_BIN="${OC_ASI_BIN:-/root/8gb/spis/bin/asi}"
 OC_INCOMING_DIR="${OC_INCOMING_DIR:-/root/8gb/oled/incoming}"
 
-TESTFILE="${TESTFILE:-/tmp/asi_speed_test_1mb.bin}"
-RESULTS="/tmp/asi_speed_sweep_results.txt"
+TESTFILE="${TESTFILE:-$ROOT/tmp/asi_speed_test_1mb.bin}"
+# Results are kept (not deleted) under lolv/tmp.
+RESULTS="${RESULTS:-$ROOT/tmp/asi_speed_sweep_results.txt}"
 
 (( CHUNK_BYTES % FIFO_WORD == 0 )) || { echo "ERROR: CHUNK_BYTES must be a multiple of $FIFO_WORD" >&2; exit 2; }
 (( CHUNK_BYTES <= 16384 )) || { echo "ERROR: CHUNK_BYTES exceeds the 4096-word RX FIFO (16384 bytes)" >&2; exit 2; }
@@ -67,7 +76,7 @@ sha256sum "$TESTFILE"
 LAST_RETRIES=""; LAST_KBS=""
 run_at() {
     local hz="$1" log rc line elapsed retries bytes
-    log="$(mktemp /tmp/asi_sweep.XXXXXX.log)"
+    log="$(mktemp "$ROOT/tmp/asi_sweep.XXXXXX.log")"
 
     cat <<EOT
 
@@ -174,3 +183,9 @@ well below the wire rate, the next win is fewer/larger chunks (raise
 CHUNK_BYTES toward the 16384-byte FIFO limit), not a faster clock.
 EOT
 column -t -s$'\t' "$RESULTS" 2>/dev/null || cat "$RESULTS"
+
+# Drop ephemeral payload; keep RESULTS under $ROOT/tmp.
+if [[ "$TESTFILE" == "$ROOT/tmp/"* ]]; then
+    rm -f -- "$TESTFILE"
+fi
+rm -f -- "$ROOT/tmp"/asi_sweep.*.log 2>/dev/null || true
