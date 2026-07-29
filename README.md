@@ -223,8 +223,7 @@ None of that is a *fix*, it is load-shaping. The fix is electrical.
 - `spi_ext` interrupt to the PLIC, DTS node auto-generated
 - `lolv_spi` kernel chardev driver, interrupt-driven, batched reads
 - ASI file transfer, retry-forever, SHA-256 verified end to end
-- ASI over the chardev: **43.8 → 98.6 KB/s**, retries 3 → 0, and now faster
-  than the polling receiver (18.1 s vs 30.2 s for 1.78 MB)
+- ASI over the chardev: **42 → 250 KB/s**, retries 3 → 0, 
 - OWP2 v2: collapsed 5 exchanges to 2; OLED round trip **~1900 ms → ~11 ms**
 - Interrupt-driven OLED backend with dirty-page flush and coalescing
 - Web frontend with instant optimistic ghost drawing
@@ -278,69 +277,8 @@ Next steps, cheapest first:
   scope the 3.3 V rail during a full repaint. If it sags, nothing in software
   will fix this properly.
 
-#### 2. `DisplayInvert` fails at the web ↔ backend boundary
+### TODO:
 
-The browser sends `{"cmd":"display_invert"}` but `BrowserCommand` carries
-`#[serde(tag = "cmd", rename_all = "lowercase")]`, which lowercases the whole
-identifier with no separator — so serde is looking for `displayinvert`. The
-command fails to deserialise and the websocket replies with
-`{"kind":"error","message":"bad command: ..."}`.
-
-Fixed by naming the variant explicitly rather than relying on the rename
-rule. **Worth a rule:** any multi-word `BrowserCommand` variant needs an
-explicit `#[serde(rename = "...")]`, because `lowercase` silently produces
-a name nobody would guess. There is no compile-time check tying the JS
-strings to the enum; a round-trip test over the JSON the frontend actually
-emits would catch the next one.
-
-#### 3. Drawing near the bottom lands at the top
-
-Objects drawn low on the canvas appear at the top of the panel. Vertical
-origin or height is wrong somewhere, and it is **not yet diagnosed** — do
-not assume the cause. There are three places it could be, and they are
-cleanly separable:
-
-```sh
-# 1. Draw a mark at a known low row, then dump the FRAMEBUFFER as ASCII art.
-curl -X POST localhost:8080/text -H 'content-type: application/json' \
-  -d '{"x":2,"y":56,"text":"LOW","size_px":8}'
-curl -s localhost:8080/screenshot | tail -n +3 | tr -d ' ' | tr '01' '.#'
-```
-
-- Mark appears **low in the PBM** and low on the panel → not a bug, look
-  again at what was actually clicked.
-- Mark appears **low in the PBM** but high on the panel → the panel side:
-  page addressing in `flush_one_page`, display offset (`0xD3`), start line
-  (`0x40`), or multiplex ratio (`0xA8`) in the init sequence.
-- Mark appears **high in the PBM** → the Jetson side, and since `set_pixel`
-  clips rather than wraps, suspect the browser's `xy()` — it divides by
-  `getBoundingClientRect().height`, which is wrong if the `#stack`
-  `aspect-ratio` did not apply. Check `/stats` agrees with the backend's
-  `--height` too: a mismatch there is silently clipped, not reported.
-
-Note that `set_pixel` cannot wrap — it bounds-checks against `width`/
-`height` and returns. So a true wrap has to come from the panel's own
-addressing, not from the framebuffer.
-
-### Todo
-
-- **Incremental commit in ASI** — hash and write per chunk instead of at
-  `DONE`. Currently ~1/3 of wall time is SHA-256 + SD write after the last
-  chunk. `sha2::Digest::update()` per chunk, payload streamed behind the
-  header.
-- **Re-run the speed sweep** (`debug_step_00_asi_speed_sweep.sh`) now that
-  the handshake is cheap, and sweep the chardev receiver specifically
-  (`RECEIVER=chardev`, the default) — the two receivers have different
-  ceilings. The cable has a real ~1% error floor at 4 MHz; 8 MHz fails CRC.
-  Shorter leads and a ground return alongside the clock are the physical fix.
-- **Dithered shades** as a parameter on primitives. 1 bpp means spatial
-  dithering is the only route to grey.
-- **Multi-line and aligned text.** `rasterize` deliberately rejects newlines
-  rather than guessing line spacing; layout is the caller's decision.
-- **`lolv_spi` service** — systemd unit with a `flock` so ASI and the OLED
-  backend cannot both hold the mailbox. Right now the board scripts guard
-  this with a `pidof` check, which is advisory only. Userspace; a kernel
-  module buys nothing here.
 - **I2C kernel driver** for multiple OLEDs.
 - **`aii`** — ASI-over-I2C for touchscreen input. Design for small messages;
   ~90 kHz I2C is ~45x slower than the SPI link.
